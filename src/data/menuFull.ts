@@ -16,6 +16,12 @@ export type PickupItem = MenuItem & {
   availability: Availability;
   /** How many box slots this item consumes when added to a bundle (default 1). */
   slotSize?: number;
+  /**
+   * Optional inline bundle tier. Lets Square-synced items carry their tier
+   * directly (no hardcoded `itemBundleTier` lookup), while legacy hardcoded
+   * items continue to fall back to the static map.
+   */
+  bundleTier?: BundleTier;
 };
 
 /**
@@ -170,7 +176,10 @@ export function calculateBundlePrice(
   }
   let maxTier: BundleTier = "basic";
   for (const c of contents) {
-    const tier = itemBundleTier[c.item.id] ?? "premium";
+    // Prefer item.bundleTier (set by Square-synced items via the menu API);
+    // fall back to the legacy hardcoded map; final fallback "premium".
+    const tier: BundleTier =
+      c.item.bundleTier ?? itemBundleTier[c.item.id] ?? "premium";
     if (tierOrder.indexOf(tier) > tierOrder.indexOf(maxTier)) maxTier = tier;
   }
   return size === 6 ? bundlePricing[maxTier].half : bundlePricing[maxTier].dozen;
