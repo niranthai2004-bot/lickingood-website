@@ -43,8 +43,8 @@ const columns = [
     title: "Merchant",
     links: [
       { label: "Login", href: "/merchant/login" },
-      { label: "Dashboard", href: "/merchant/dashboard" },
       { label: "Merchant Portal", href: "/merchant" },
+      { label: "Admin Portal", href: "/admin/login" },
     ],
   },
 ];

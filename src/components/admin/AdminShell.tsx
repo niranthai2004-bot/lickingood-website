@@ -21,7 +21,7 @@ export function AdminShell({
   const pathname = usePathname();
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/merchant/login";
+    window.location.href = "/admin/login";
   };
 
   return (

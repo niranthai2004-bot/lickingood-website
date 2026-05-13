@@ -27,13 +27,16 @@ export default function AdminOverviewPage() {
       } = await supabase.auth.getUser();
       if (cancelled) return;
       if (!user) {
-        router.push("/merchant/login?next=/admin");
+        router.push("/admin/login");
         return;
       }
       // Quick client-side hint — server-side enforcement still happens in API routes
       const res = await fetch("/api/admin/whoami", { cache: "no-store" });
       if (res.status === 403) {
-        router.push("/merchant/login?error=not_admin");
+        // Signed in but not admin — wipe the session so the admin login page
+        // shows the form cleanly instead of auto-redirecting back here.
+        await supabase.auth.signOut({ scope: "local" });
+        router.push("/admin/login?error=not_admin");
         return;
       }
       setAdminEmail(user.email);

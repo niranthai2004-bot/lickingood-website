@@ -25,8 +25,40 @@ export default function AcceptInvitePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Supabase auto-detects the invite tokens in the URL hash and creates
-      // a session. Give it a tick, then check.
+      // CRITICAL: an admin signing in to invite a new merchant and then
+      // clicking the invite link in the same browser would otherwise see
+      // their own admin session here (Supabase's auto-detect can lose the
+      // race against an existing cached session). Explicitly tear down any
+      // existing local session, then hydrate from the invite URL tokens.
+      const hash = typeof window !== "undefined" ? window.location.hash : "";
+      const inviteParams = new URLSearchParams(hash.replace(/^#/, ""));
+      const access_token = inviteParams.get("access_token");
+      const refresh_token = inviteParams.get("refresh_token");
+      const tokenType = inviteParams.get("type");
+      const isInviteLanding =
+        !!access_token && !!refresh_token && tokenType === "invite";
+
+      if (isInviteLanding) {
+        // Wipe any cached session (e.g. logged-in admin) so the invited
+        // merchant's session is the only one that survives.
+        await supabase.auth.signOut({ scope: "local" });
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: access_token!,
+          refresh_token: refresh_token!,
+        });
+        if (setErr) {
+          console.error("[Accept Invite] setSession failed", setErr);
+        }
+        // Strip the tokens from the URL so a refresh doesn't replay them.
+        if (typeof window !== "undefined") {
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + window.location.search,
+          );
+        }
+      }
+
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       if (!data.session) {
@@ -113,12 +145,18 @@ export default function AcceptInvitePage() {
               </h1>
               <p className="mt-2 text-sm text-cocoa-700">
                 Create a password to finish setting up your merchant account.
-                {email && (
-                  <>
-                    {" "}You&apos;re signed in as <strong>{email}</strong>.
-                  </>
-                )}
               </p>
+
+              {email && (
+                <div className="mt-5 rounded-2xl bg-cream-100 border border-cream-200 px-4 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cocoa-700">
+                    You are signing up as
+                  </p>
+                  <p className="font-display text-base font-black text-cocoa-900 break-all leading-tight mt-0.5">
+                    {email}
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 <Field

@@ -62,6 +62,15 @@ function MerchantDashboardInner() {
         .maybeSingle();
 
       if (!merchant) {
+        // No merchant row. Before sending to the (invite-only closed) signup
+        // page, check whether this is an admin who landed here by accident —
+        // admins should never be in merchant onboarding.
+        const adminRes = await fetch("/api/admin/whoami", { cache: "no-store" });
+        if (cancelled) return;
+        if (adminRes.ok) {
+          router.replace("/admin");
+          return;
+        }
         router.push("/merchant/signup");
         return;
       }

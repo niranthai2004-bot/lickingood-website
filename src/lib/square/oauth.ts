@@ -54,8 +54,33 @@ export function getSquareAppSecret(): string | undefined {
   return process.env.SQUARE_APP_SECRET || process.env.SQUARE_APPLICATION_SECRET;
 }
 
+/**
+ * Build the Square OAuth redirect URI.
+ *
+ * Must EXACTLY match the redirect URL registered in the Square Developer
+ * Dashboard (production tab if SQUARE_ENVIRONMENT=production). Square rejects
+ * the OAuth request with "Invalid value for parameter redirect_uri" if the
+ * value differs by even a trailing slash or scheme.
+ *
+ * Normalization rules applied here:
+ * - Trim whitespace around the env value
+ * - Strip a single trailing slash (so `https://x.com/` and `https://x.com`
+ *   both produce `https://x.com/auth/callback`)
+ * - In production, fail loud if NEXT_PUBLIC_APP_URL is missing — never
+ *   silently fall back to localhost (the silent fallback used to produce
+ *   `http://localhost:3000/auth/callback` in prod, which Square rejects).
+ */
 export function getRedirectUri(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!raw) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "NEXT_PUBLIC_APP_URL is not set in production. Set it to your live origin (e.g. https://lickingooddonuts.net) in Vercel → Environment Variables, then redeploy.",
+      );
+    }
+    return "http://localhost:3000/auth/callback";
+  }
+  const appUrl = raw.endsWith("/") ? raw.slice(0, -1) : raw;
   return `${appUrl}/auth/callback`;
 }
 

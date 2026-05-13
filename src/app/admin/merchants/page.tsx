@@ -81,12 +81,13 @@ export default function AdminMerchantsPage() {
       } = await supabase.auth.getUser();
       if (cancelled) return;
       if (!user) {
-        router.push("/merchant/login?next=/admin/merchants");
+        router.push("/admin/login");
         return;
       }
       const res = await fetch("/api/admin/whoami", { cache: "no-store" });
       if (res.status === 403) {
-        router.push("/merchant/login?error=not_admin");
+        await supabase.auth.signOut({ scope: "local" });
+        router.push("/admin/login?error=not_admin");
         return;
       }
       setAdminEmail(user.email);

@@ -3,11 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { supabase } from "@/lib/supabaseClient";
 
 type Mode = "signin" | "signup";
 
-export default function AuthPage() {
+export default function CustomerAuthPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -23,98 +24,87 @@ export default function AuthPage() {
     setLoading(true);
 
     if (mode === "signin") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      setLoading(false);
       if (error) {
         setError(error.message);
-      } else {
-        router.push("/");
-        router.refresh();
+        return;
       }
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
-      } else if (data.user && !data.session) {
-        setInfo("Check your email for a confirmation link to finish signing up.");
-      } else {
-        // Create the customer_profiles row so this account is enrolled in rewards
-        const userId = data.user?.id ?? data.session?.user.id;
-        if (userId) {
-          await supabase
-            .from("customer_profiles")
-            .insert({ user_id: userId })
-            .select()
-            .maybeSingle();
-        }
-        router.push("/");
-        router.refresh();
-      }
+      router.push("/");
+      router.refresh();
+      return;
     }
 
+    const { data, error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    if (data.user && !data.session) {
+      setInfo("Check your email for a confirmation link to finish signing up.");
+      return;
+    }
+    const userId = data.user?.id ?? data.session?.user.id;
+    if (userId) {
+      await supabase
+        .from("customer_profiles")
+        .insert({ user_id: userId })
+        .select()
+        .maybeSingle();
+    }
+    router.push("/");
+    router.refresh();
   }
 
   const isSignIn = mode === "signin";
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#FFF7E8] px-4 py-12">
+    <div className="min-h-screen bg-cream-50 flex items-center justify-center px-5 py-12">
       <div className="w-full max-w-md">
-        <Link
-          href="/"
-          className="block text-center text-3xl font-extrabold tracking-tight text-[#FF6B1A] mb-8"
-        >
-          Lickin&apos; Good
+        <Link href="/" className="flex items-center justify-center mb-8 group">
+          <BrandMark />
         </Link>
 
-        <div className="bg-white rounded-2xl shadow-lg border border-[#F4E4C1] p-8">
-          <h1 className="text-2xl font-bold text-neutral-900 mb-1">
-            {isSignIn ? "Welcome back" : "Create an account"}
+        <div className="bg-cream-50 rounded-3xl shadow-lg border border-cream-200 p-8 sm:p-9">
+          <h1 className="font-display text-3xl font-black text-cocoa-900">
+            {isSignIn ? "Welcome back." : "Create your account."}
           </h1>
-          <p className="text-sm text-neutral-600 mb-6">
+          <p className="text-sm text-cocoa-700 mt-1.5">
             {isSignIn
-              ? "Sign in to track orders and save favorites."
-              : "Sign up to save your orders and earn rewards."}
+              ? "Sign in to track orders and save your favorites."
+              : "Save your orders, earn rewards, and order faster next time."}
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-800 mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A]/30"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-800 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                autoComplete={isSignIn ? "current-password" : "new-password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A]/30"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <Field
+              label="Email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              autoComplete="email"
+              required
+            />
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={setPassword}
+              autoComplete={isSignIn ? "current-password" : "new-password"}
+              required
+              minLength={6}
+            />
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 {error}
               </p>
             )}
             {info && (
-              <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+              <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
                 {info}
               </p>
             )}
@@ -122,13 +112,17 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-[#FF6B1A] hover:bg-[#E85F12] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 transition-colors"
+              className="w-full inline-flex items-center justify-center px-5 py-3.5 rounded-full bg-cocoa-900 hover:bg-cocoa-800 disabled:opacity-60 text-cream-50 font-bold text-sm transition-all duration-300 hover:scale-[1.01]"
             >
-              {loading ? "Please wait..." : isSignIn ? "Sign in" : "Create account"}
+              {loading
+                ? "Please wait…"
+                : isSignIn
+                  ? "Sign in"
+                  : "Create account"}
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-neutral-600">
+          <div className="mt-6 text-center text-sm text-cocoa-700">
             {isSignIn ? "New to Lickin' Good?" : "Already have an account?"}{" "}
             <button
               type="button"
@@ -137,13 +131,44 @@ export default function AuthPage() {
                 setError(null);
                 setInfo(null);
               }}
-              className="text-[#FF6B1A] hover:text-[#E85F12] font-semibold"
+              className="font-bold text-cocoa-900 hover:text-cocoa-800"
             >
               {isSignIn ? "Sign up" : "Sign in"}
             </button>
           </div>
         </div>
+
+        <p className="text-center text-xs text-cocoa-700 mt-6 max-w-sm mx-auto">
+          By signing in you agree to our terms. We&apos;ll never share your
+          info — donuts only.
+        </p>
       </div>
-    </main>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  ...inputProps
+}: {
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  minLength?: number;
+  autoComplete?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-bold uppercase tracking-[0.18em] text-cocoa-700 mb-1.5">
+        {label}
+      </span>
+      <input
+        {...inputProps}
+        onChange={(e) => inputProps.onChange(e.target.value)}
+        className="w-full rounded-xl border border-cream-300 bg-cream-50 px-4 py-3 text-cocoa-900 text-sm focus:outline-none focus:border-cocoa-900 transition-colors"
+      />
+    </label>
   );
 }

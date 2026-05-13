@@ -18,11 +18,22 @@ export default function MerchantLoginPage() {
     setError(null);
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
+
+    // If this email is an admin, route them to the admin console instead of
+    // the merchant dashboard — keeps admins out of merchant onboarding.
+    const adminRes = await fetch("/api/admin/whoami", { cache: "no-store" });
+    setLoading(false);
+    if (adminRes.ok) {
+      router.push("/admin");
+      router.refresh();
+      return;
+    }
+
     router.push("/merchant/dashboard");
     router.refresh();
   }
@@ -79,13 +90,7 @@ export default function MerchantLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 space-y-2 text-center">
-            <Link
-              href="/merchant/signup"
-              className="block text-sm font-bold text-cocoa-900 hover:text-cocoa-800"
-            >
-              Create a merchant account →
-            </Link>
+          <div className="mt-6 text-center">
             <button
               type="button"
               className="text-xs font-semibold text-cocoa-700 hover:text-cocoa-900"
@@ -96,7 +101,18 @@ export default function MerchantLoginPage() {
         </div>
 
         <p className="text-center text-xs text-cocoa-700 mt-6 max-w-sm mx-auto">
-          Square securely powers inventory, payments, and order syncing.
+          New merchants join by invitation only. Contact us to be considered.
+        </p>
+
+        {/* Subtle admin entry point — not advertised publicly, only people
+            who know about /admin will spot this. Still server-side gated. */}
+        <p className="text-center text-[10px] tracking-[0.18em] uppercase text-cocoa-700/60 mt-10">
+          <Link
+            href="/admin/login"
+            className="hover:text-cocoa-900 transition-colors"
+          >
+            Admin
+          </Link>
         </p>
       </div>
     </div>

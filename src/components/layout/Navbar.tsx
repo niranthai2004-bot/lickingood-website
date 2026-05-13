@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, ShoppingBag, Sparkles, User, X } from "lucide-react";
+import { Menu, ShoppingBag, User, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { BrandMark } from "@/components/ui/BrandMark";
 
@@ -105,17 +105,11 @@ export function Navbar() {
           </Link>
           <Link
             href="/auth"
-            aria-label={signedIn ? "My account" : "Sign in"}
+            aria-label="Account"
             className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-sm font-bold transition-colors"
           >
-            {signedIn ? (
-              <User size={16} />
-            ) : (
-              <Sparkles size={14} className="text-amber-500 fill-amber-400" />
-            )}
-            <span className="hidden sm:inline">
-              {signedIn ? "My Account" : "Sign In"}
-            </span>
+            <User size={16} strokeWidth={1.75} />
+            <span className="hidden sm:inline">Account</span>
           </Link>
           <button
             type="button"

@@ -47,7 +47,7 @@ In the import screen (or **Project Settings → Environment Variables** if alrea
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://tunybfxlndhlvaqjyaed.supabase.co` | Same as local |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_jTkvMyNcP9CR4BXJnR4VxQ_7PEZqyVS` | Same as local |
 | `SUPABASE_SERVICE_ROLE_KEY` | *(your service role key)* | Server-only — keep secret |
-| `NEXT_PUBLIC_APP_URL` | `https://lickinggooddonut.net` | **Production only** |
+| `NEXT_PUBLIC_APP_URL` | `https://lickingooddonuts.net` | **Production only** |
 | `NEXT_PUBLIC_SQUARE_APP_ID` | *(production Square App ID — see step 5)* | starts with `sq0idp-` |
 | `SQUARE_APP_SECRET` | *(production Square App Secret)* | starts with `sq0csp-` |
 | `SQUARE_ENVIRONMENT` | `production` | Was `sandbox` locally |
@@ -66,15 +66,15 @@ You'll get a URL like `lickingood-website-xxx.vercel.app`. Test it works (homepa
 ### A — In Vercel
 
 1. **Project → Settings → Domains**
-2. Type `lickinggooddonut.net` → **Add**
+2. Type `lickingooddonuts.net` → **Add**
 3. Vercel will show DNS records you need to add at your registrar. Note them down — you'll see either:
    - **A record** pointing the apex to `76.76.21.21`, OR
    - **Two ALIAS/CNAME records** for `@` and `www`
-4. Also add `www.lickinggooddonut.net` (Vercel may suggest making one the primary and redirecting the other — pick `www` redirects to apex, or apex redirects to www — your call)
+4. Also add `www.lickingooddonuts.net` (Vercel may suggest making one the primary and redirecting the other — pick `www` redirects to apex, or apex redirects to www — your call)
 
 ### B — In Porkbun
 
-1. Sign in to https://porkbun.com → **Domain Management** → click `lickinggooddonut.net`
+1. Sign in to https://porkbun.com → **Domain Management** → click `lickingooddonuts.net`
 2. Click **DNS Records** (or the DNS icon next to the domain)
 3. **Delete any existing A or CNAME records on `@` and `www`** if they conflict
 4. Add these records:
@@ -95,14 +95,14 @@ For `www`:
 
 ### C — Wait for DNS propagation + SSL
 
-Back in Vercel → **Settings → Domains**, the status next to `lickinggooddonut.net` will go from "Invalid Configuration" → "Verifying" → "Valid". Usually 1–15 minutes, can take up to a few hours.
+Back in Vercel → **Settings → Domains**, the status next to `lickingooddonuts.net` will go from "Invalid Configuration" → "Verifying" → "Valid". Usually 1–15 minutes, can take up to a few hours.
 
-Once it shows **Valid Configuration**, Vercel auto-issues a free Let's Encrypt SSL cert. After 1–2 more minutes, https://lickinggooddonut.net loads with a valid lock icon.
+Once it shows **Valid Configuration**, Vercel auto-issues a free Let's Encrypt SSL cert. After 1–2 more minutes, https://lickingooddonuts.net loads with a valid lock icon.
 
 Sanity check:
 ```
-https://lickinggooddonut.net          → your homepage
-https://lickinggooddonut.net/merchant → merchant landing
+https://lickingooddonuts.net          → your homepage
+https://lickingooddonuts.net/merchant → merchant landing
 ```
 
 ---
@@ -124,7 +124,7 @@ In https://developer.squareup.com/apps → your `LIckInGoodDonuts` app:
 5. In the left sidebar, click **OAuth** (production view still)
 6. Add the **Production Redirect URL**:
    ```
-   https://lickinggooddonut.net/auth/callback
+   https://lickingooddonuts.net/auth/callback
    ```
 7. Click **Save**
 
@@ -151,13 +151,13 @@ Approval typically takes 5–10 business days. Until you're approved, an Authori
 
 After steps 1–5:
 
-1. Sign in to **your** merchant account at https://lickinggooddonut.net/merchant/login
+1. Sign in to **your** merchant account at https://lickingooddonuts.net/merchant/login
 2. Navigate to the dashboard
 3. Click **Continue with Square**
 4. You should be redirected to **`connect.squareup.com`** (NOT sandbox)
 5. Sign in with the real Square account you want to test with
 6. Approve permissions
-7. Square redirects to `https://lickinggooddonut.net/auth/callback`
+7. Square redirects to `https://lickingooddonuts.net/auth/callback`
 8. App lands you on `/merchant/connecting` then `/merchant/dashboard?connected=1`
 9. Dashboard shows **Connected to Square** with location count populated
 
@@ -179,17 +179,17 @@ You're a thin frontend on top of Square's existing money/inventory infrastructur
 
 ---
 
-## 9. Adding `lickinggooddonut.com` later
+## 9. Adding `lickingooddonuts.com` later
 
 When the `.com` is yours:
 
-1. Buy `lickinggooddonut.com` on Porkbun
-2. In Vercel → **Settings → Domains** → add `lickinggooddonut.com`
+1. Buy `lickingooddonuts.com` on Porkbun
+2. In Vercel → **Settings → Domains** → add `lickingooddonuts.com`
 3. Set up the same DNS records on Porkbun's side (A record `76.76.21.21` on apex + CNAME on www)
-4. In Vercel's Domains panel, **make `lickinggooddonut.com` the primary domain** (use the "Set as primary" / "Redirect to primary" option)
-5. Vercel will automatically 308 redirect `lickinggooddonut.net` → `lickinggooddonut.com` (you choose the direction)
-6. **Update `NEXT_PUBLIC_APP_URL` env var to `https://lickinggooddonut.com`** and redeploy
-7. **In Square Developer Dashboard**, update the production Redirect URL to `https://lickinggooddonut.com/auth/callback` (or add the .com alongside the .net for a transition period)
+4. In Vercel's Domains panel, **make `lickingooddonuts.com` the primary domain** (use the "Set as primary" / "Redirect to primary" option)
+5. Vercel will automatically 308 redirect `lickingooddonuts.net` → `lickingooddonuts.com` (you choose the direction)
+6. **Update `NEXT_PUBLIC_APP_URL` env var to `https://lickingooddonuts.com`** and redeploy
+7. **In Square Developer Dashboard**, update the production Redirect URL to `https://lickingooddonuts.com/auth/callback` (or add the .com alongside the .net for a transition period)
 8. **In Supabase**, update the Redirect URLs allowlist (Authentication → URL Configuration) to include `.com` URLs
 
 Old `.net` links keep working forever via Vercel's redirect — no broken bookmarks.
@@ -219,7 +219,7 @@ git push -u origin some-feature
 | Symptom | Fix |
 |---|---|
 | `Couldn't exchange the authorization code with Square` | Verify Square's production redirect URL exactly matches `NEXT_PUBLIC_APP_URL + /auth/callback`. No trailing slashes, http vs https matches. |
-| Invite emails not arriving | Supabase Dashboard → **Authentication → URL Configuration** → add both `https://lickinggooddonut.net/merchant/accept-invite` AND your `.vercel.app` preview URL to **Redirect URLs**. |
+| Invite emails not arriving | Supabase Dashboard → **Authentication → URL Configuration** → add both `https://lickingooddonuts.net/merchant/accept-invite` AND your `.vercel.app` preview URL to **Redirect URLs**. |
 | `/admin` redirects you to login | Confirm your email is in `ADMIN_EMAILS` in Vercel env vars. Case-insensitive, comma-separated. |
 | Build fails on Vercel | Check Vercel build logs. Usually means an env var is missing or there's a TypeScript error. The build runs `npm run build` exactly. |
 | `useSearchParams()` Suspense error | Wrap the consuming component in `<Suspense fallback={null}>` — see `merchant/connect-square/page.tsx` for the pattern. |
