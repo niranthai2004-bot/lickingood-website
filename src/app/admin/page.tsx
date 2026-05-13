@@ -10,6 +10,8 @@ import { supabase } from "@/lib/supabaseClient";
 type Summary = {
   merchantCount: number;
   connectedCount: number;
+  locationCount: number;
+  itemCount: number;
 };
 
 export default function AdminOverviewPage() {
@@ -42,21 +44,25 @@ export default function AdminOverviewPage() {
       setAdminEmail(user.email);
       setChecked(true);
 
-      const [{ count: merchantCount }, { count: connectedCount }] =
-        await Promise.all([
-          supabase
-            .from("merchants")
-            .select("id", { count: "exact", head: true }),
-          supabase
-            .from("square_connections")
-            .select("id", { count: "exact", head: true }),
-        ]);
+      // Counters MUST come from the service-role endpoint — admins don't
+      // have a merchants row, so RLS blocks the client-side queries that
+      // used to live here. This is why /admin showed 0 merchants even
+      // when merchants existed.
+      const statsRes = await fetch("/api/admin/stats", { cache: "no-store" });
+      if (!statsRes.ok) {
+        if (cancelled) return;
+        setSummary({
+          merchantCount: 0,
+          connectedCount: 0,
+          locationCount: 0,
+          itemCount: 0,
+        });
+        return;
+      }
+      const stats = (await statsRes.json()) as Summary;
 
       if (cancelled) return;
-      setSummary({
-        merchantCount: merchantCount ?? 0,
-        connectedCount: connectedCount ?? 0,
-      });
+      setSummary(stats);
     })();
     return () => {
       cancelled = true;
@@ -80,7 +86,7 @@ export default function AdminOverviewPage() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-5">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           eyebrow="Merchants"
           value={summary ? String(summary.merchantCount) : "—"}
@@ -92,6 +98,18 @@ export default function AdminOverviewPage() {
           value={summary ? String(summary.connectedCount) : "—"}
           sub="Live OAuth sessions"
           Icon={Plug}
+        />
+        <StatCard
+          eyebrow="Live locations"
+          value={summary ? String(summary.locationCount) : "—"}
+          sub="Across all merchants"
+          Icon={Plug}
+        />
+        <StatCard
+          eyebrow="Menu items"
+          value={summary ? String(summary.itemCount) : "—"}
+          sub="Synced from Square"
+          Icon={ShieldCheck}
         />
       </div>
 

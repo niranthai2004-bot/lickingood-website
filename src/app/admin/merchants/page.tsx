@@ -23,6 +23,7 @@ type Merchant = {
   created_at: string;
   has_connection: boolean;
   location_count: number;
+  item_count: number;
 };
 
 export default function AdminMerchantsPage() {
@@ -34,42 +35,17 @@ export default function AdminMerchantsPage() {
 
   const refresh = async () => {
     setLoading(true);
-    // Pull merchants + lateral counts for connection + locations
-    const { data: merchantRows } = await supabase
-      .from("merchants")
-      .select("id, business_name, owner_name, email, phone, created_at")
-      .order("created_at", { ascending: false });
-
-    if (!merchantRows) {
+    // Server-side endpoint (service role) — RLS blocks admins from reading
+    // the merchants table directly via the client supabase client because
+    // admins have no row of their own to satisfy auth.uid() = user_id.
+    const res = await fetch("/api/admin/merchants", { cache: "no-store" });
+    if (!res.ok) {
       setMerchants([]);
       setLoading(false);
       return;
     }
-
-    // Quick batched lookups — Supabase RLS allows admins to read (we added a
-    // service-role read path? No — admins read via auth.uid() = user_id.
-    // Because admins don't have a merchants row, RLS blocks them.
-    // For admin views we hit a server route that uses the service role.
-    const enriched = await Promise.all(
-      merchantRows.map(async (m) => {
-        const [{ count: connCount }, { count: locCount }] = await Promise.all([
-          supabase
-            .from("square_connections")
-            .select("id", { count: "exact", head: true })
-            .eq("merchant_id", m.id),
-          supabase
-            .from("merchant_locations")
-            .select("id", { count: "exact", head: true })
-            .eq("merchant_id", m.id),
-        ]);
-        return {
-          ...m,
-          has_connection: (connCount ?? 0) > 0,
-          location_count: locCount ?? 0,
-        };
-      }),
-    );
-    setMerchants(enriched);
+    const json = (await res.json()) as { merchants: Merchant[] };
+    setMerchants(json.merchants ?? []);
     setLoading(false);
   };
 
