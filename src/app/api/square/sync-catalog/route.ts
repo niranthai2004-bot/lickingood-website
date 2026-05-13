@@ -5,6 +5,7 @@ import {
   fetchSquareCatalog,
   getValidAccessToken,
   type SquareCatalogItem,
+  type SquareInventoryCount,
 } from "@/lib/square/api";
 
 /**
@@ -251,7 +252,7 @@ export async function POST() {
 
   let inventoryUpserts = 0;
   if (variationSquareIds.length > 0 && squareLocationIds.length > 0) {
-    let counts;
+    let counts: SquareInventoryCount[] = [];
     try {
       counts = await fetchInventoryCounts(
         accessToken,
@@ -261,7 +262,6 @@ export async function POST() {
     } catch (e) {
       // Non-fatal: items still sync, just without inventory.
       console.error("[Sync Catalog] inventory fetch failed (non-fatal):", e);
-      counts = [];
     }
 
     if (counts.length > 0) {
