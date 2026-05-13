@@ -1,17 +1,38 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Bike, ShoppingBag } from "lucide-react";
-import { locations } from "@/data/locations";
 import { FadeIn, Line } from "@/components/ui/Reveal";
 import { LocationSearch } from "@/components/pickup/LocationSearch";
 
 /**
  * Search-first pickup picker.
- * No "browse the map" wall — just toggle, prominent search, and a small
- * link out to the dedicated Locations page for users who want to scroll.
+ * Reads the live count of active merchant locations from the public API
+ * (instead of the hardcoded data module) so it stays in sync with whatever
+ * merchants have synced to the platform.
  */
 export default function PickupPickerPage() {
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/public/locations", { cache: "no-store" });
+        const json = (await res.json()) as { count?: number };
+        if (cancelled) return;
+        setCount(json.count ?? 0);
+      } catch {
+        if (cancelled) return;
+        setCount(0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section className="relative pt-32 sm:pt-36 lg:pt-40 pb-32 lg:pb-40 overflow-x-clip min-h-[calc(100vh-4rem)]">
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-cream-100 via-cream-50 to-cream-50" />
@@ -76,7 +97,11 @@ export default function PickupPickerPage() {
             href="/locations"
             className="group inline-flex items-center gap-1.5 text-sm font-bold text-cocoa-700 hover:text-cocoa-900 transition-colors"
           >
-            Or browse all {locations.length} shops on the Locations page
+            {count === null
+              ? "Or browse all shops on the Locations page"
+              : count === 0
+                ? "Visit our Locations page"
+                : `Or browse all ${count} shop${count === 1 ? "" : "s"} on the Locations page`}
             <ArrowUpRight
               size={14}
               className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"

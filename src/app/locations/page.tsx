@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { ArrowUpRight, Bike, MapPin, Phone, ShoppingBag } from "lucide-react";
-import { locations, type Location } from "@/data/locations";
+import type { PublicLocation } from "@/lib/locations/types";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
 
@@ -23,8 +23,40 @@ const stateGroups: { id: "AL" | "FL"; label: string; sub: string }[] = [
 
 export default function LocationsPage() {
   const [active, setActive] = useState<ActiveState>("all");
+  const [locations, setLocations] = useState<PublicLocation[] | null>(null);
   const reduceMotion = useReducedMotion();
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // Fetch real merchant locations from the public API on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/public/locations", {
+          cache: "no-store",
+        });
+        const json = (await res.json()) as { locations?: PublicLocation[] };
+        if (cancelled) return;
+        setLocations(json.locations ?? []);
+      } catch {
+        if (cancelled) return;
+        setLocations([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Group state-bucketed locations once.
+  const grouped = useMemo(() => {
+    const buckets: Record<"AL" | "FL", PublicLocation[]> = { AL: [], FL: [] };
+    for (const loc of locations ?? []) {
+      const k = (loc.state || "").toUpperCase();
+      if (k === "AL" || k === "FL") buckets[k].push(loc);
+    }
+    return buckets;
+  }, [locations]);
 
   // Auto-highlight tab based on which state section is below the sticky bar.
   useEffect(() => {
@@ -68,6 +100,9 @@ export default function LocationsPage() {
     });
   };
 
+  const totalCount = locations?.length ?? 0;
+  const loading = locations === null;
+
   return (
     <>
       {/* ───── Intro ───── */}
@@ -109,8 +144,8 @@ export default function LocationsPage() {
               const isActive = active === tab.id;
               const count =
                 tab.id === "all"
-                  ? locations.length
-                  : locations.filter((l) => l.state === tab.id).length;
+                  ? totalCount
+                  : grouped[tab.id as "AL" | "FL"].length;
               return (
                 <button
                   key={tab.id}
@@ -125,10 +160,12 @@ export default function LocationsPage() {
                   {tab.label}
                   <span
                     className={`inline-flex items-center justify-center min-w-[1.25rem] px-1.5 h-5 rounded-full text-[11px] font-black ${
-                      isActive ? "bg-cream-50/20 text-cream-50" : "bg-cream-50 text-cocoa-700"
+                      isActive
+                        ? "bg-cream-50/20 text-cream-50"
+                        : "bg-cream-50 text-cocoa-700"
                     }`}
                   >
-                    {count}
+                    {loading ? "…" : count}
                   </span>
                 </button>
               );
@@ -137,41 +174,68 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      {/* ───── Grouped grids ───── */}
+      {/* ───── Grouped grids / states ───── */}
       <section ref={gridRef} className="relative pt-12 lg:pt-14 pb-20 lg:pb-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 lg:space-y-20">
-          {stateGroups.map((group, gi) => {
-            const items = locations.filter((l) => l.state === group.id);
-            if (items.length === 0) return null;
-            return (
-              <div
-                key={group.id}
-                id={group.id}
-                className="scroll-mt-40 sm:scroll-mt-44"
-              >
-                <FadeIn delay={gi * 0.04}>
-                  <div className="mb-8">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-1.5">
-                      {group.sub}
-                    </p>
-                    <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black text-cocoa-900 tracking-tight leading-[0.95]">
-                      {group.label}
-                    </h2>
+          {loading && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          )}
+
+          {!loading && totalCount === 0 && (
+            <div className="rounded-card bg-cream-100 border border-cream-200 px-10 py-14 text-center">
+              <MapPin
+                size={22}
+                className="text-cocoa-700 mx-auto mb-3"
+                strokeWidth={1.75}
+              />
+              <p className="font-display text-2xl font-black text-cocoa-900">
+                Locations coming soon.
+              </p>
+              <p className="mt-2 text-base text-cocoa-700 max-w-md mx-auto">
+                Our shops are getting connected to the new ordering system.
+                Check back in a moment.
+              </p>
+            </div>
+          )}
+
+          {!loading &&
+            totalCount > 0 &&
+            stateGroups.map((group, gi) => {
+              const items = grouped[group.id];
+              if (items.length === 0) return null;
+              return (
+                <div
+                  key={group.id}
+                  id={group.id}
+                  className="scroll-mt-40 sm:scroll-mt-44"
+                >
+                  <FadeIn delay={gi * 0.04}>
+                    <div className="mb-8">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-1.5">
+                        {group.sub}
+                      </p>
+                      <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black text-cocoa-900 tracking-tight leading-[0.95]">
+                        {group.label}
+                      </h2>
+                    </div>
+                  </FadeIn>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+                    {items.map((loc, i) => (
+                      <LocationCard
+                        key={loc.slug}
+                        loc={loc}
+                        index={i}
+                        reduceMotion={!!reduceMotion}
+                      />
+                    ))}
                   </div>
-                </FadeIn>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-                  {items.map((loc, i) => (
-                    <LocationCard
-                      key={loc.id}
-                      loc={loc}
-                      index={i}
-                      reduceMotion={!!reduceMotion}
-                    />
-                  ))}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </section>
 
@@ -228,10 +292,12 @@ function LocationCard({
   index,
   reduceMotion,
 }: {
-  loc: Location;
+  loc: PublicLocation;
   index: number;
   reduceMotion: boolean;
 }) {
+  const cityLabel = loc.city || loc.state;
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 24 }}
@@ -249,45 +315,52 @@ function LocationCard({
       <div className="relative aspect-[16/10] overflow-hidden">
         <FoodImage
           src={loc.image}
-          alt={`${loc.neighborhood ?? loc.city}, ${loc.state}`}
+          alt={`${loc.name}, ${loc.state}`}
           fallbackBg="bg-stone-200"
           className="w-full h-full"
           imgClassName="transition-transform duration-[1100ms] ease-[cubic-bezier(.22,1,.36,1)] group-hover:scale-105"
         />
-        <span className="absolute top-3 right-3 inline-flex items-center px-2.5 py-1 rounded-full bg-cream-50/95 text-cocoa-900 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
-          {loc.state}
-        </span>
+        {loc.state && (
+          <span className="absolute top-3 right-3 inline-flex items-center px-2.5 py-1 rounded-full bg-cream-50/95 text-cocoa-900 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
+            {loc.state}
+          </span>
+        )}
       </div>
 
       {/* Body */}
       <div className="p-5 sm:p-6 flex-1 flex flex-col">
         <h3 className="font-display text-2xl font-black text-cocoa-900 leading-tight">
-          {loc.neighborhood ?? loc.city}
+          {loc.name}
         </h3>
         <p className="text-sm text-cocoa-700 mt-1">
-          {loc.neighborhood ? `${loc.city}, ${loc.state}` : loc.state}
+          {cityLabel}
+          {loc.city && loc.state ? `, ${loc.state}` : ""}
         </p>
 
         <ul className="mt-4 space-y-2 text-sm text-cocoa-700">
-          <li className="flex items-start gap-2">
-            <MapPin size={14} className="mt-0.5 shrink-0 text-cocoa-900" />
-            <span>{loc.address}</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <Phone size={14} className="shrink-0 text-cocoa-900" />
-            <a
-              href={`tel:${loc.phone}`}
-              className="hover:text-cocoa-900 font-semibold"
-            >
-              {loc.phone}
-            </a>
-          </li>
+          {loc.address && (
+            <li className="flex items-start gap-2">
+              <MapPin size={14} className="mt-0.5 shrink-0 text-cocoa-900" />
+              <span>{loc.address}</span>
+            </li>
+          )}
+          {loc.phone && (
+            <li className="flex items-center gap-2">
+              <Phone size={14} className="shrink-0 text-cocoa-900" />
+              <a
+                href={`tel:${loc.phone}`}
+                className="hover:text-cocoa-900 font-semibold"
+              >
+                {loc.phone}
+              </a>
+            </li>
+          )}
         </ul>
 
         {/* Action pills — always visible */}
         <div className="mt-auto pt-5 flex flex-wrap gap-2">
           <Link
-            href={`/order/pickup/${loc.id}`}
+            href={`/order/pickup/${loc.slug}`}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 text-xs font-bold transition-colors"
           >
             <ShoppingBag size={13} /> Pickup
@@ -309,5 +382,19 @@ function LocationCard({
         </div>
       </div>
     </motion.article>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-card overflow-hidden bg-cream-50 border border-cream-200 shadow-sm">
+      <div className="aspect-[16/10] bg-cream-100 animate-pulse" />
+      <div className="p-5 sm:p-6 space-y-3">
+        <div className="h-6 bg-cream-100 rounded-md w-2/3 animate-pulse" />
+        <div className="h-3 bg-cream-100 rounded-md w-1/2 animate-pulse" />
+        <div className="h-3 bg-cream-100 rounded-md w-4/5 animate-pulse" />
+        <div className="h-3 bg-cream-100 rounded-md w-2/5 animate-pulse" />
+      </div>
+    </div>
   );
 }

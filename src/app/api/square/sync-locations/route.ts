@@ -3,7 +3,9 @@ import { createServerClient, createServiceClient } from "@/lib/supabase/server";
 import {
   fetchSquareLocations,
   getValidAccessToken,
+  type SquareLocation,
 } from "@/lib/square/api";
+import { slugify, slugWithSuffix } from "@/lib/locations/slug";
 
 /**
  * POST /api/square/sync-locations
@@ -11,6 +13,10 @@ import {
  * Pulls the authenticated merchant's locations from Square and upserts them
  * into `merchant_locations`. Idempotent — running it again refreshes the
  * cached names/addresses without duplicating rows.
+ *
+ * Populates phone + lat/lng + a URL-safe slug for the public-facing site.
+ * Slug collisions are resolved by appending the last 4 chars of the Square
+ * location ID, so retries remain deterministic.
  */
 export async function POST() {
   // Who's the calling merchant?
@@ -43,7 +49,7 @@ export async function POST() {
   }
 
   // Pull locations
-  let locations;
+  let locations: SquareLocation[];
   try {
     locations = await fetchSquareLocations(accessToken);
   } catch (e) {
@@ -53,27 +59,52 @@ export async function POST() {
     );
   }
 
-  // Upsert into merchant_locations (service role bypasses RLS)
-  const admin = createServiceClient();
-  const rows = locations.map((loc) => ({
-    merchant_id: merchant.id,
-    square_location_id: loc.id,
-    location_name: loc.name,
-    address: [
-      loc.address?.address_line_1,
-      loc.address?.address_line_2,
-    ]
-      .filter(Boolean)
-      .join(", ") || null,
-    city: loc.address?.locality ?? null,
-    state: loc.address?.administrative_district_level_1 ?? null,
-    zip: loc.address?.postal_code ?? null,
-    is_active: loc.status === "ACTIVE",
-  }));
-
-  if (rows.length === 0) {
+  if (locations.length === 0) {
     return NextResponse.json({ synced: 0, locations: [] });
   }
+
+  // ─── Resolve slug collisions against the rest of the platform ───
+  const admin = createServiceClient();
+  const desiredSlugs = locations.map((l) => slugify(l.name));
+  const { data: clashing } = await admin
+    .from("merchant_locations")
+    .select("slug, square_location_id")
+    .in("slug", desiredSlugs);
+
+  // Map of slug → owning square_location_id. If our incoming Square ID matches
+  // the existing owner of that slug, we keep it (idempotent re-sync).
+  const slugOwner = new Map<string, string | null>();
+  for (const row of clashing ?? []) {
+    if (row.slug) slugOwner.set(row.slug, row.square_location_id ?? null);
+  }
+
+  const rows = locations.map((loc) => {
+    const base = slugify(loc.name);
+    const owner = slugOwner.get(base);
+    const finalSlug =
+      owner == null || owner === loc.id
+        ? base
+        : slugWithSuffix(loc.name, loc.id);
+
+    const address = [loc.address?.address_line_1, loc.address?.address_line_2]
+      .filter(Boolean)
+      .join(", ");
+
+    return {
+      merchant_id: merchant.id,
+      square_location_id: loc.id,
+      location_name: loc.name,
+      slug: finalSlug || null,
+      address: address || null,
+      city: loc.address?.locality ?? null,
+      state: loc.address?.administrative_district_level_1 ?? null,
+      zip: loc.address?.postal_code ?? null,
+      phone: loc.phone_number ?? null,
+      latitude: loc.coordinates?.latitude ?? null,
+      longitude: loc.coordinates?.longitude ?? null,
+      is_active: loc.status === "ACTIVE",
+    };
+  });
 
   const { error: upsertErr } = await admin
     .from("merchant_locations")

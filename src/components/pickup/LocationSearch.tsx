@@ -11,7 +11,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { locations, type Location } from "@/data/locations";
+import type { PublicLocation } from "@/lib/locations/types";
 import { FoodImage } from "@/components/ui/FoodImage";
 
 type GeoState = "idle" | "loading" | "ready" | "denied";
@@ -27,13 +27,34 @@ export function LocationSearch({
   const [query, setQuery] = useState("");
   const [openDropdown, setOpenDropdown] = useState(false);
   const [geo, setGeo] = useState<GeoState>("idle");
+  const [locations, setLocations] = useState<PublicLocation[]>([]);
+  const [loading, setLoading] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  // Fetch the live merchant locations once on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/public/locations", { cache: "no-store" });
+        const json = (await res.json()) as { locations?: PublicLocation[] };
+        if (cancelled) return;
+        setLocations(json.locations ?? []);
+      } catch {
+        if (cancelled) return;
+        setLocations([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // After permission granted, show closest 3 shops (mock — real distance
-    // ranking comes from a geocoder at integration time).
     if (!q && geo === "ready") {
       return locations.slice(0, 3);
     }
@@ -42,13 +63,13 @@ export function LocationSearch({
     }
     return locations
       .filter((l) => {
-        const haystack = `${l.city} ${l.neighborhood ?? ""} ${l.state} ${l.address}`.toLowerCase();
+        const haystack = `${l.city} ${l.name} ${l.state} ${l.address}`.toLowerCase();
         return haystack.includes(q);
       })
       .slice(0, 12);
-  }, [query, geo]);
+  }, [query, geo, locations]);
 
-  /** Mock distance until a real geocoder is wired in. */
+  /** Mock distance until a real geocoder is wired in (Phase D). */
   const mockDistance = (index: number) =>
     `${(2.1 + index * 1.3).toFixed(1)} mi`;
 
@@ -63,10 +84,10 @@ export function LocationSearch({
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  const goTo = (loc: Location) => {
+  const goTo = (loc: PublicLocation) => {
     setOpenDropdown(false);
     setQuery("");
-    router.push(`/order/${mode}/${loc.id}`);
+    router.push(`/order/${mode}/${loc.slug}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -86,8 +107,7 @@ export function LocationSearch({
     setGeo("loading");
     navigator.geolocation.getCurrentPosition(
       () => {
-        // Real distance ranking comes from a geocoding API at integration time.
-        // For now, we just mark the suggestions list as "sorted by location".
+        // Real distance ranking lands in Phase D (geocoding + haversine).
         setGeo("ready");
         setOpenDropdown(true);
       },
@@ -190,7 +210,7 @@ export function LocationSearch({
 
             <ul className="max-h-[min(85vh,700px)] overflow-y-auto overscroll-contain pb-3">
               {matches.map((loc, i) => (
-                <li key={loc.id}>
+                <li key={loc.slug}>
                   <button
                     type="button"
                     onClick={() => goTo(loc)}
@@ -207,11 +227,13 @@ export function LocationSearch({
                     <span className="flex-1 min-w-0">
                       <span className="flex items-center gap-2 mb-0.5">
                         <span className="font-display font-black text-cocoa-900 text-base sm:text-lg leading-tight truncate">
-                          {loc.neighborhood ?? loc.city}
+                          {loc.name}
                         </span>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-cream-100 text-cocoa-700 text-[9px] font-black uppercase tracking-wider shrink-0">
-                          {loc.state}
-                        </span>
+                        {loc.state && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-cream-100 text-cocoa-700 text-[9px] font-black uppercase tracking-wider shrink-0">
+                            {loc.state}
+                          </span>
+                        )}
                         {geo === "ready" && !query.trim() && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[9px] font-black uppercase tracking-wider shrink-0">
                             {mockDistance(i)}
@@ -219,7 +241,7 @@ export function LocationSearch({
                         )}
                       </span>
                       <span className="block text-xs sm:text-sm text-cocoa-700 truncate">
-                        {loc.neighborhood ? `${loc.city} · ` : ""}
+                        {loc.city ? `${loc.city} · ` : ""}
                         {loc.address}
                       </span>
                     </span>
@@ -233,7 +255,8 @@ export function LocationSearch({
             </ul>
           </motion.div>
         )}
-        {openDropdown && matches.length === 0 && (
+
+        {openDropdown && matches.length === 0 && !loading && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -241,12 +264,33 @@ export function LocationSearch({
             transition={{ duration: 0.25 }}
             className="absolute top-full left-0 right-0 mt-3 bg-cream-50 border border-cream-200 rounded-3xl shadow-2xl px-6 py-10 text-center z-30"
           >
+            <MapPin size={20} className="text-cocoa-700 mx-auto mb-2" />
             <p className="text-base text-cocoa-900 font-bold mb-1">
-              No shops match &ldquo;{query}&rdquo;
+              {query
+                ? `No shops match "${query}"`
+                : "No shops are open yet — check back soon."}
             </p>
-            <p className="text-sm text-cocoa-700">
-              Try a different city, ZIP, or street name.
-            </p>
+            {query && (
+              <p className="text-sm text-cocoa-700">
+                Try a different city, ZIP, or street name.
+              </p>
+            )}
+          </motion.div>
+        )}
+
+        {openDropdown && loading && matches.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.25 }}
+            className="absolute top-full left-0 right-0 mt-3 bg-cream-50 border border-cream-200 rounded-3xl shadow-2xl px-6 py-10 text-center z-30"
+          >
+            <Loader2
+              size={20}
+              className="animate-spin text-cocoa-700 mx-auto mb-2"
+            />
+            <p className="text-sm text-cocoa-700">Loading nearby shops…</p>
           </motion.div>
         )}
       </AnimatePresence>

@@ -74,6 +74,7 @@ export type SquareLocation = {
   id: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
+  phone_number?: string;
   address?: {
     address_line_1?: string;
     address_line_2?: string;
@@ -81,6 +82,11 @@ export type SquareLocation = {
     administrative_district_level_1?: string;
     postal_code?: string;
   };
+  coordinates?: {
+    latitude?: number;
+    longitude?: number;
+  };
+  capabilities?: string[];
 };
 
 /** Fetch all locations a merchant operates. */
