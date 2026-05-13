@@ -4,13 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  AlertCircle,
   ArrowUpRight,
   CheckCircle2,
   Plug,
   Receipt,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant/MerchantShell";
 import { supabase } from "@/lib/supabaseClient";
@@ -20,6 +18,7 @@ type MerchantSummary = {
   ownerName: string;
   email: string;
   locationCount: number;
+  itemCount: number;
   hasSquareConnection: boolean;
   squareMerchantId: string | null;
   lastSyncAt: string | null;
@@ -41,6 +40,8 @@ function MerchantDashboardInner() {
   const [summary, setSummary] = useState<MerchantSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncMessage, setResyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +76,11 @@ function MerchantDashboardInner() {
         return;
       }
 
-      const [{ count: locCount }, { data: conn }] = await Promise.all([
+      const [
+        { count: locCount },
+        { data: conn },
+        { count: itemCount },
+      ] = await Promise.all([
         supabase
           .from("merchant_locations")
           .select("id", { count: "exact", head: true })
@@ -85,6 +90,11 @@ function MerchantDashboardInner() {
           .select("merchant_square_id, updated_at")
           .eq("merchant_id", merchant.id)
           .maybeSingle(),
+        supabase
+          .from("merchant_catalog_items")
+          .select("id", { count: "exact", head: true })
+          .eq("merchant_id", merchant.id)
+          .eq("is_archived", false),
       ]);
 
       if (cancelled) return;
@@ -93,6 +103,7 @@ function MerchantDashboardInner() {
         ownerName: merchant.owner_name,
         email: merchant.email,
         locationCount: locCount ?? 0,
+        itemCount: itemCount ?? 0,
         hasSquareConnection: !!conn,
         squareMerchantId: conn?.merchant_square_id ?? null,
         lastSyncAt: conn?.updated_at ?? null,
@@ -103,6 +114,37 @@ function MerchantDashboardInner() {
       cancelled = true;
     };
   }, [router]);
+
+  async function handleResync() {
+    if (resyncing) return;
+    setResyncing(true);
+    setResyncMessage(null);
+    try {
+      const [locRes, catRes] = await Promise.all([
+        fetch("/api/square/sync-locations", { method: "POST" }),
+        fetch("/api/square/sync-catalog", { method: "POST" }),
+      ]);
+      if (!locRes.ok || !catRes.ok) {
+        setResyncMessage("Sync hit a snag. Please try again in a moment.");
+      } else {
+        const catJson = (await catRes.json().catch(() => ({}))) as {
+          counts?: { items?: number };
+        };
+        const newCount = catJson?.counts?.items ?? null;
+        setResyncMessage(
+          newCount != null
+            ? `Refreshed — ${newCount} menu item${newCount === 1 ? "" : "s"} synced.`
+            : "Menu refreshed.",
+        );
+        // Reload summary so counters reflect new state
+        router.refresh();
+      }
+    } catch {
+      setResyncMessage("Sync hit a snag. Please try again in a moment.");
+    } finally {
+      setResyncing(false);
+    }
+  }
 
   if (!authChecked) return null;
 
@@ -161,9 +203,18 @@ function MerchantDashboardInner() {
           tone={summary?.hasSquareConnection ? "good" : "warn"}
         />
         <StatCard
-          eyebrow="Inventory status"
-          value={loading ? "—" : summary?.hasSquareConnection ? "Live" : "Idle"}
-          sub="Square is the source of truth"
+          eyebrow="Menu items"
+          value={loading ? "—" : String(summary?.itemCount ?? 0)}
+          sub={
+            summary?.hasSquareConnection
+              ? "Synced from your Square catalog"
+              : "Connect Square to populate"
+          }
+          tone={
+            summary?.hasSquareConnection && (summary?.itemCount ?? 0) > 0
+              ? "good"
+              : "neutral"
+          }
         />
       </div>
 
@@ -215,6 +266,7 @@ function MerchantDashboardInner() {
             </div>
             <dl className="mt-4 text-sm divide-y divide-cream-200">
               <Row label="Locations synced" value={String(summary.locationCount)} />
+              <Row label="Menu items" value={String(summary.itemCount)} />
               <Row
                 label="Last sync"
                 value={
@@ -225,17 +277,23 @@ function MerchantDashboardInner() {
               />
             </dl>
             <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleResync}
+                disabled={resyncing}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 disabled:opacity-60 text-cream-50 text-xs font-bold transition-colors"
+              >
+                <RefreshCw
+                  size={13}
+                  className={resyncing ? "animate-spin" : ""}
+                />
+                {resyncing ? "Syncing…" : "Resync menu"}
+              </button>
               <Link
                 href="/api/square/connect"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-xs font-bold transition-colors"
               >
                 <RefreshCw size={13} /> Reconnect Square
-              </Link>
-              <Link
-                href="/merchant/menu"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 text-xs font-bold transition-colors"
-              >
-                <RefreshCw size={13} /> Sync inventory
               </Link>
               <Link
                 href="/merchant/connect-square"
@@ -244,6 +302,9 @@ function MerchantDashboardInner() {
                 Manage permissions
               </Link>
             </div>
+            {resyncMessage && (
+              <p className="mt-3 text-xs text-cocoa-700">{resyncMessage}</p>
+            )}
           </div>
 
           <div className="rounded-3xl bg-cream-50 border border-cream-200 p-6">

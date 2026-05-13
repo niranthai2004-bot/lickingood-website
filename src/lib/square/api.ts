@@ -14,6 +14,8 @@ import { createServiceClient } from "@/lib/supabase/server";
  * the service role and merchant access tokens that must never reach the client.
  */
 
+const SQUARE_VERSION = "2024-01-18";
+
 export type StoredSquareConnection = {
   merchant_id: string;
   access_token: string;
@@ -51,7 +53,6 @@ export async function getValidAccessToken(
     };
   }
 
-  // Refresh and persist
   const refreshed: SquareTokenResponse = await refreshAccessToken(
     conn.refresh_token,
   );
@@ -69,6 +70,10 @@ export async function getValidAccessToken(
     squareMerchantId: refreshed.merchant_id,
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// LOCATIONS
+// ───────────────────────────────────────────────────────────────────────────
 
 export type SquareLocation = {
   id: string;
@@ -89,14 +94,13 @@ export type SquareLocation = {
   capabilities?: string[];
 };
 
-/** Fetch all locations a merchant operates. */
 export async function fetchSquareLocations(
   accessToken: string,
 ): Promise<SquareLocation[]> {
   const res = await fetch(`${getSquareApiBaseUrl()}/locations`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "Square-Version": "2024-01-18",
+      "Square-Version": SQUARE_VERSION,
     },
     cache: "no-store",
   });
@@ -108,58 +112,206 @@ export async function fetchSquareLocations(
   return json.locations ?? [];
 }
 
-/**
- * Fetch a merchant's full catalog (items + variations).
- * Currently returns the raw Square shape — UI maps it later.
- */
-export async function fetchSquareCatalog(accessToken: string) {
-  const res = await fetch(
-    `${getSquareApiBaseUrl()}/catalog/list?types=ITEM,CATEGORY,MODIFIER_LIST`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Square-Version": "2024-01-18",
-      },
-      cache: "no-store",
-    },
-  );
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Square catalog fetch failed (${res.status}): ${body}`);
-  }
-  return res.json();
-}
+// ───────────────────────────────────────────────────────────────────────────
+// CATALOG
+// ───────────────────────────────────────────────────────────────────────────
+
+export type SquareMoney = {
+  amount?: number;
+  currency?: string;
+};
+
+export type SquareCatalogItemVariation = {
+  type: "ITEM_VARIATION";
+  id: string;
+  updated_at?: string;
+  is_deleted?: boolean;
+  item_variation_data: {
+    item_id?: string;
+    name?: string;
+    ordinal?: number;
+    pricing_type?: "FIXED_PRICING" | "VARIABLE_PRICING";
+    price_money?: SquareMoney;
+    location_overrides?: Array<{
+      location_id: string;
+      price_money?: SquareMoney;
+      track_inventory?: boolean;
+      sold_out?: boolean;
+    }>;
+    track_inventory?: boolean;
+  };
+};
+
+export type SquareCatalogItem = {
+  type: "ITEM";
+  id: string;
+  updated_at?: string;
+  is_deleted?: boolean;
+  present_at_all_locations?: boolean;
+  present_at_location_ids?: string[];
+  absent_at_location_ids?: string[];
+  item_data: {
+    name?: string;
+    description?: string;
+    category_id?: string;
+    image_ids?: string[];
+    variations?: SquareCatalogItemVariation[];
+    is_archived?: boolean;
+  };
+};
+
+export type SquareCatalogCategory = {
+  type: "CATEGORY";
+  id: string;
+  updated_at?: string;
+  is_deleted?: boolean;
+  category_data: {
+    name?: string;
+    ordinal?: number;
+  };
+};
+
+export type SquareCatalogImage = {
+  type: "IMAGE";
+  id: string;
+  is_deleted?: boolean;
+  image_data: {
+    url?: string;
+    name?: string;
+    caption?: string;
+  };
+};
+
+export type SquareCatalogObject =
+  | SquareCatalogItem
+  | SquareCatalogItemVariation
+  | SquareCatalogCategory
+  | SquareCatalogImage
+  | { type: string; id: string; is_deleted?: boolean };
 
 /**
- * Fetch inventory counts for a set of catalog object IDs at a specific location.
+ * Pull the full catalog (items + categories + images) for the merchant,
+ * paginating through all results. Square caps page size around 1000, so
+ * even very large catalogs converge in a small handful of round-trips.
+ */
+export async function fetchSquareCatalog(
+  accessToken: string,
+): Promise<{
+  items: SquareCatalogItem[];
+  categories: SquareCatalogCategory[];
+  images: SquareCatalogImage[];
+}> {
+  const items: SquareCatalogItem[] = [];
+  const categories: SquareCatalogCategory[] = [];
+  const images: SquareCatalogImage[] = [];
+
+  let cursor: string | undefined = undefined;
+  const types = "ITEM,CATEGORY,IMAGE";
+
+  // Safety cap so a malformed cursor loop can't spin forever
+  for (let page = 0; page < 50; page++) {
+    const url = new URL(`${getSquareApiBaseUrl()}/catalog/list`);
+    url.searchParams.set("types", types);
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const res = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Square-Version": SQUARE_VERSION,
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Square catalog fetch failed (${res.status}): ${body}`);
+    }
+    const json = (await res.json()) as {
+      objects?: SquareCatalogObject[];
+      cursor?: string;
+    };
+
+    for (const obj of json.objects ?? []) {
+      if (obj.is_deleted) continue;
+      if (obj.type === "ITEM") items.push(obj as SquareCatalogItem);
+      else if (obj.type === "CATEGORY")
+        categories.push(obj as SquareCatalogCategory);
+      else if (obj.type === "IMAGE") images.push(obj as SquareCatalogImage);
+    }
+
+    if (!json.cursor) break;
+    cursor = json.cursor;
+  }
+
+  return { items, categories, images };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// INVENTORY
+// ───────────────────────────────────────────────────────────────────────────
+
+export type SquareInventoryCount = {
+  catalog_object_id: string;
+  catalog_object_type?: string;
+  state?: string;
+  location_id: string;
+  quantity?: string;
+  calculated_at?: string;
+};
+
+/**
+ * Fetch inventory counts for a set of catalog object IDs across one or
+ * more locations. Square's batch-retrieve endpoint accepts up to 1000 IDs
+ * per call, so we chunk to be safe.
  */
 export async function fetchInventoryCounts(
   accessToken: string,
   catalogObjectIds: string[],
   locationIds: string[],
-) {
+): Promise<SquareInventoryCount[]> {
   if (catalogObjectIds.length === 0 || locationIds.length === 0) {
-    return { counts: [] };
+    return [];
   }
-  const res = await fetch(
-    `${getSquareApiBaseUrl()}/inventory/counts/batch-retrieve`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Square-Version": "2024-01-18",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        catalog_object_ids: catalogObjectIds,
-        location_ids: locationIds,
-      }),
-      cache: "no-store",
-    },
-  );
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Square inventory fetch failed (${res.status}): ${body}`);
+
+  const CHUNK = 500;
+  const all: SquareInventoryCount[] = [];
+
+  for (let i = 0; i < catalogObjectIds.length; i += CHUNK) {
+    const slice = catalogObjectIds.slice(i, i + CHUNK);
+    let cursor: string | undefined = undefined;
+
+    for (let page = 0; page < 25; page++) {
+      const res = await fetch(
+        `${getSquareApiBaseUrl()}/inventory/counts/batch-retrieve`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Square-Version": SQUARE_VERSION,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            catalog_object_ids: slice,
+            location_ids: locationIds,
+            cursor,
+          }),
+          cache: "no-store",
+        },
+      );
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+          `Square inventory fetch failed (${res.status}): ${body}`,
+        );
+      }
+      const json = (await res.json()) as {
+        counts?: SquareInventoryCount[];
+        cursor?: string;
+      };
+      if (json.counts) all.push(...json.counts);
+      if (!json.cursor) break;
+      cursor = json.cursor;
+    }
   }
-  return res.json();
+
+  return all;
 }

@@ -43,21 +43,28 @@ export default function MerchantConnectingPage() {
       );
 
       // Step 2 — kick off real locations sync, then advance no matter what
-      const syncStart = Date.now();
+      const locStart = Date.now();
       try {
         await fetch("/api/square/sync-locations", { method: "POST" });
       } catch {
         // Surface no error to merchant — sync runs in background and can be
         // re-tried from the dashboard.
       }
-      // Floor the perceived duration at 1.2s so it doesn't feel like nothing happened
-      const elapsed = Date.now() - syncStart;
-      if (elapsed < 1200) await wait(1200 - elapsed);
+      const locElapsed = Date.now() - locStart;
+      if (locElapsed < 1200) await wait(1200 - locElapsed);
       if (cancelled) return;
       setSteps((s) => update(s, "locations", "done", "menu", "active"));
 
-      // Step 3 → done after 900ms (menu sync wiring lands in a follow-up)
-      await wait(900);
+      // Step 3 — catalog (items + variations + inventory + availability)
+      const catStart = Date.now();
+      try {
+        await fetch("/api/square/sync-catalog", { method: "POST" });
+      } catch {
+        // Non-fatal: merchant can resync from the dashboard later.
+      }
+      const catElapsed = Date.now() - catStart;
+      // Catalog can be slow — surface min 1.4s but no upper cap.
+      if (catElapsed < 1400) await wait(1400 - catElapsed);
       if (cancelled) return;
       setSteps((s) => update(s, "menu", "done", "done", "active"));
 

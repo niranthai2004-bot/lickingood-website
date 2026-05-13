@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  ChefHat,
   LogOut,
   MapPin,
   Plug,
@@ -14,11 +13,12 @@ import {
 import { BrandMark } from "@/components/ui/BrandMark";
 import { supabase } from "@/lib/supabaseClient";
 
+// Menu syncing is automatic on OAuth connect + manually re-triggerable
+// from the dashboard — no dedicated sidebar entry needed.
 const navItems = [
   { href: "/merchant/dashboard", label: "Dashboard", Icon: BarChart3 },
   { href: "/merchant/orders", label: "Orders", Icon: Receipt },
   { href: "/merchant/locations", label: "Locations", Icon: MapPin },
-  { href: "/merchant/menu", label: "Menu Sync", Icon: ChefHat },
   { href: "/merchant/connect-square", label: "Square Connection", Icon: Plug },
   { href: "/merchant/settings", label: "Settings", Icon: Settings },
 ];
