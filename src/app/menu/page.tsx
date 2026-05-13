@@ -1,50 +1,43 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { fullMenu, fullMenuCategories } from "@/data/menuFull";
-import type { Category, MenuItem } from "@/data/menu";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ChevronDown, Plus, X } from "lucide-react";
+import {
+  coreMenu,
+  coreMenuCategories,
+  type CoreMenuItem,
+  type CoreCategory,
+} from "@/data/coreMenu";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
 import { FlavorRequest } from "@/components/sections/FlavorRequest";
 
-type ActiveId = Category | "all";
+type ActiveId = CoreCategory | "all";
 
 const filterOrder: { id: ActiveId; label: string }[] = [
   { id: "all", label: "All" },
-  ...fullMenuCategories.map((c) => ({ id: c.id as ActiveId, label: c.label })),
-];
-
-const surfaces = [
-  { bg: "bg-amber-50", border: "border-amber-100" },
-  { bg: "bg-rose-50", border: "border-rose-100" },
-  { bg: "bg-violet-50", border: "border-violet-100" },
-  { bg: "bg-sky-50", border: "border-sky-100" },
-  { bg: "bg-stone-100", border: "border-stone-200" },
-  { bg: "bg-orange-50", border: "border-orange-100" },
+  ...coreMenuCategories.map((c) => ({ id: c.id as ActiveId, label: c.label })),
 ];
 
 export default function MenuPage() {
   const [active, setActive] = useState<ActiveId>("all");
+  const [openItem, setOpenItem] = useState<CoreMenuItem | null>(null);
   const reduceMotion = useReducedMotion();
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Auto-highlight the tab whose section is currently below the sticky tab bar.
-  // Uses a throttled scroll listener — IntersectionObserver was less reliable
-  // for tracking "which section is currently nearest the top of viewport".
+  // Auto-highlight tab on scroll
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        // Target line: just below sticky tab bar (~ navbar + tabs height)
         const targetY = 200;
         let found: ActiveId = "all";
-        for (const cat of fullMenuCategories) {
+        for (const cat of coreMenuCategories) {
           const el = document.getElementById(cat.id);
           if (!el) continue;
-          const top = el.getBoundingClientRect().top;
-          if (top <= targetY) {
+          if (el.getBoundingClientRect().top <= targetY) {
             found = cat.id;
           } else {
             break;
@@ -61,15 +54,25 @@ export default function MenuPage() {
     };
   }, []);
 
-  // Tab click — smooth-scroll to the matching section (or to the grid top for "All").
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (openItem) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [openItem]);
+
   const handleTabClick = (id: ActiveId) => {
     setActive(id);
     requestAnimationFrame(() => {
       if (id === "all") {
         gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
-        const el = document.getElementById(id);
-        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById(id)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       }
     });
   };
@@ -100,13 +103,14 @@ export default function MenuPage() {
           </h1>
           <FadeIn delay={0.4} className="mt-7 max-w-2xl">
             <p className="text-xl text-cocoa-700 font-medium leading-snug">
-              Seasonal favorites, classic donuts, breakfast bites, and craft
-              coffee — pulled fresh every morning.
+              Our core lineup, organized clean. Flavors and variants live
+              inside each card — tap to peek.
             </p>
           </FadeIn>
           <FadeIn delay={0.55} className="mt-3 max-w-2xl">
             <p className="text-sm text-cocoa-700">
-              Seasonal and limited-time offerings may vary by location.
+              Specials, seasonal items, and exclusive flavors may vary by
+              location.
             </p>
           </FadeIn>
         </div>
@@ -137,12 +141,12 @@ export default function MenuPage() {
         </div>
       </div>
 
-      {/* ───── Items grid (always shows all sections; tabs are scroll anchors) ───── */}
+      {/* ───── Items grid (sections per category) ───── */}
       <section ref={gridRef} className="relative py-12 lg:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="space-y-16 lg:space-y-20">
-            {fullMenuCategories.map((cat, ci) => {
-              const items = fullMenu.filter((item) => item.category === cat.id);
+            {coreMenuCategories.map((cat, ci) => {
+              const items = coreMenu.filter((item) => item.category === cat.id);
               if (items.length === 0) return null;
               return (
                 <div
@@ -153,13 +157,16 @@ export default function MenuPage() {
                   <FadeIn delay={ci * 0.04}>
                     <SectionHeading label={cat.label} sub={cat.sub} />
                   </FadeIn>
-                  <ItemsGrid items={items} reduceMotion={!!reduceMotion} />
+                  <ItemsGrid
+                    items={items}
+                    reduceMotion={!!reduceMotion}
+                    onOpenVariants={setOpenItem}
+                  />
                 </div>
               );
             })}
           </div>
 
-          {/* Bottom note */}
           <FadeIn className="mt-16">
             <p className="text-center text-sm text-cocoa-700 max-w-xl mx-auto">
               Menu items and pricing may vary by location. Some items are
@@ -168,6 +175,13 @@ export default function MenuPage() {
           </FadeIn>
         </div>
       </section>
+
+      {/* ───── Variant picker modal ───── */}
+      <AnimatePresence>
+        {openItem && (
+          <VariantsModal item={openItem} onClose={() => setOpenItem(null)} />
+        )}
+      </AnimatePresence>
 
       {/* ───── Community section ───── */}
       <FlavorRequest />
@@ -191,9 +205,11 @@ function SectionHeading({ label, sub }: { label: string; sub: string }) {
 function ItemsGrid({
   items,
   reduceMotion,
+  onOpenVariants,
 }: {
-  items: MenuItem[];
+  items: CoreMenuItem[];
   reduceMotion: boolean;
+  onOpenVariants: (item: CoreMenuItem) => void;
 }) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-7">
@@ -203,6 +219,7 @@ function ItemsGrid({
           item={item}
           index={i}
           reduceMotion={reduceMotion}
+          onOpenVariants={onOpenVariants}
         />
       ))}
     </div>
@@ -213,12 +230,20 @@ function ItemCard({
   item,
   index,
   reduceMotion,
+  onOpenVariants,
 }: {
-  item: MenuItem;
+  item: CoreMenuItem;
   index: number;
   reduceMotion: boolean;
+  onOpenVariants: (item: CoreMenuItem) => void;
 }) {
-  const surface = surfaces[index % surfaces.length];
+  const hasVariants = !!item.variants && item.variants.length > 0;
+
+  // Whole-card click opens variants for items that have them; for single
+  // items, the card is still a focal element but doesn't open anything.
+  const onCardClick = () => {
+    if (hasVariants) onOpenVariants(item);
+  };
 
   return (
     <motion.article
@@ -231,7 +256,19 @@ function ItemCard({
         ease: [0.22, 1, 0.36, 1],
       }}
       whileHover={reduceMotion ? {} : { y: -6 }}
-      className={`group relative overflow-hidden rounded-card ${surface.bg} border ${surface.border} shadow-sm hover:shadow-xl transition-shadow duration-500 h-full flex flex-col`}
+      onClick={onCardClick}
+      role={hasVariants ? "button" : undefined}
+      tabIndex={hasVariants ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (!hasVariants) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenVariants(item);
+        }
+      }}
+      className={`group relative overflow-hidden rounded-card ${item.tone} border border-cream-200 shadow-sm hover:shadow-xl transition-shadow duration-500 h-full flex flex-col ${
+        hasVariants ? "cursor-pointer" : ""
+      }`}
     >
       <div className="relative aspect-[5/4] overflow-hidden">
         <FoodImage
@@ -247,17 +284,18 @@ function ItemCard({
               Bestseller
             </span>
           )}
-          {item.limitedTime && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-cream-50/95 text-cocoa-900 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
-              Limited Time
-            </span>
-          )}
           {item.seasonal && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-cream-50/95 text-cocoa-900 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
               Seasonal
             </span>
           )}
         </div>
+        {hasVariants && (
+          <span className="absolute top-3 right-3 z-20 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cocoa-900/90 text-cream-50 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
+            <Plus size={10} />
+            {item.variants!.length} flavors
+          </span>
+        )}
       </div>
       <div className="p-6 flex-1 flex flex-col">
         <h3 className="font-display text-xl sm:text-2xl font-black text-cocoa-900 leading-tight line-clamp-2 min-h-[2lh]">
@@ -266,7 +304,96 @@ function ItemCard({
         <p className="mt-2 text-base text-cocoa-700 leading-snug line-clamp-2 min-h-[2lh]">
           {item.description}
         </p>
+
+        {hasVariants && (
+          <div className="mt-4">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-cocoa-900 group-hover:gap-2 transition-all duration-300">
+              See all flavors
+              <ChevronDown size={13} className="rotate-[-90deg]" />
+            </span>
+          </div>
+        )}
       </div>
     </motion.article>
+  );
+}
+
+function VariantsModal({
+  item,
+  onClose,
+}: {
+  item: CoreMenuItem;
+  onClose: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[70] bg-cocoa-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center px-0 sm:px-4 py-0 sm:py-8"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 32, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl bg-cream-50 sm:rounded-3xl rounded-t-3xl border-t sm:border border-cream-200 shadow-2xl overflow-hidden max-h-[88vh] flex flex-col"
+      >
+        {/* Header image */}
+        <div className="relative aspect-[16/9] overflow-hidden">
+          <FoodImage
+            src={item.image}
+            alt={item.name}
+            fallbackBg={item.tone}
+            className="w-full h-full"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-cream-50/95 hover:bg-cream-50 flex items-center justify-center text-cocoa-900 shadow-md backdrop-blur transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-6 sm:p-7 overflow-y-auto">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cocoa-700 mb-1.5">
+            {item.variants?.length ?? 0} flavors available
+          </p>
+          <h2 className="font-display text-3xl sm:text-4xl font-black text-cocoa-900 leading-tight">
+            {item.name}
+          </h2>
+          <p className="mt-2 text-base text-cocoa-700">{item.description}</p>
+
+          <ul className="mt-6 grid sm:grid-cols-2 gap-2.5">
+            {item.variants?.map((v) => (
+              <li
+                key={v.id}
+                className="flex items-start gap-3 rounded-2xl border border-cream-200 bg-cream-50 px-4 py-3"
+              >
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-cocoa-900 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-cocoa-900 leading-tight">
+                    {v.name}
+                  </p>
+                  {v.hint && (
+                    <p className="text-xs text-cocoa-700 mt-0.5">{v.hint}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-5 text-xs text-cocoa-700">
+            Availability varies by location. To order, head to your local
+            shop&apos;s pickup page.
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
