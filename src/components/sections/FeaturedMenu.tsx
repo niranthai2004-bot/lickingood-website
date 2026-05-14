@@ -2,13 +2,10 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import { Plus } from "lucide-react";
-import { useState } from "react";
 import { featuredMenu, type MenuItem } from "@/data/menu";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
 import { MobileCarousel } from "@/components/ui/MobileCarousel";
-import { OrderTypeModal } from "@/components/pickup/OrderTypeModal";
 
 const cardSurfaces = [
   { bg: "bg-amber-50", border: "border-amber-100" },
@@ -19,10 +16,16 @@ const cardSurfaces = [
   { bg: "bg-orange-50", border: "border-orange-100" },
 ];
 
+/**
+ * Editorial featured-menu section on the homepage.
+ *
+ * Intentionally has no "Add to order" CTA per card — the homepage is
+ * discovery/branding surface. Real ordering happens on /menu, the pickup
+ * flow, or the delivery flow.
+ */
 export function FeaturedMenu() {
   const reduceMotion = useReducedMotion();
   const items = featuredMenu.slice(0, 6);
-  const [pendingItem, setPendingItem] = useState<MenuItem | null>(null);
 
   return (
     <section id="menu" className="relative py-20 lg:py-28">
@@ -60,7 +63,6 @@ export function FeaturedMenu() {
                 index={i}
                 surface={surface}
                 reduceMotion={!!reduceMotion}
-                onAdd={() => setPendingItem(item)}
               />
             );
           })}
@@ -84,7 +86,6 @@ export function FeaturedMenu() {
                   index={idx}
                   surface={surface}
                   reduceMotion={!!reduceMotion}
-                  onAdd={() => setPendingItem(item)}
                   noEntryAnim
                 />
               );
@@ -92,12 +93,6 @@ export function FeaturedMenu() {
           />
         </div>
       </div>
-
-      <OrderTypeModal
-        open={pendingItem !== null}
-        onClose={() => setPendingItem(null)}
-        itemName={pendingItem?.name}
-      />
     </section>
   );
 }
@@ -107,14 +102,12 @@ function FeaturedCard({
   index,
   surface,
   reduceMotion,
-  onAdd,
   noEntryAnim,
 }: {
   item: MenuItem;
   index: number;
   surface: { bg: string; border: string };
   reduceMotion: boolean;
-  onAdd: () => void;
   /** Skip the scroll-driven entry animation. Used inside the mobile carousel
       where horizontal scroll would otherwise re-fire the entry on every card,
       making the carousel feel jittery. */
@@ -163,27 +156,12 @@ function FeaturedCard({
           )}
         </div>
         <div className="p-6 flex-1 flex flex-col">
-          <div>
-            <h3 className="font-display text-2xl font-black text-cocoa-900 leading-tight mb-2 line-clamp-2 min-h-[2lh]">
-              {item.name}
-            </h3>
-            <p className="text-base text-cocoa-700 leading-snug line-clamp-2 min-h-[2lh]">
-              {item.description}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onAdd}
-            className="group/btn relative mt-auto pt-5 inline-flex items-center justify-center gap-1.5 text-sm font-bold transition-all duration-500 ease-out"
-          >
-            <span className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 transition-all duration-500 ease-out group-hover/btn:scale-[1.02]">
-              <Plus
-                size={16}
-                className="transition-transform duration-500 group-hover/btn:rotate-90"
-              />
-              Add to order
-            </span>
-          </button>
+          <h3 className="font-display text-2xl font-black text-cocoa-900 leading-tight mb-2 line-clamp-2 min-h-[2lh]">
+            {item.name}
+          </h3>
+          <p className="text-base text-cocoa-700 leading-snug line-clamp-3">
+            {item.description}
+          </p>
         </div>
       </motion.article>
     </Wrapper>
