@@ -12,6 +12,7 @@ const perks = [
   { Icon: Star, title: "1 point per $1", body: "Every order earns. Pickup, delivery, in-store." },
   { Icon: Gift, title: "Free donut at 100", body: "Redeem your favorite — original glazed or specialty." },
   { Icon: Cake, title: "Birthday treat", body: "A free dozen on us, every year. No exceptions." },
+  { Icon: Sparkles, title: "Early access drops", body: "Members try seasonal flavors before they hit the case." },
 ];
 
 // App-style icon row at the bottom of the phone screen.
@@ -72,66 +73,30 @@ export function Rewards() {
         }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
-        <div className="order-2 lg:order-none">
+      {/* 3-block layout on mobile (intro → phone → details).
+          2-col layout on desktop (intro+details left column, phone spans both rows on right). */}
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 items-center">
+        {/* ── Block 1: Intro (top on mobile, top-left on desktop) ── */}
+        <div className="order-1 lg:order-none lg:col-start-1 lg:row-start-1">
           <FadeIn>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-4">
               Lickin&apos; Good Rewards
             </p>
           </FadeIn>
-          <h2 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-cocoa-900 tracking-tight leading-[0.92]">
+          <h2 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-cocoa-900 tracking-tight leading-[0.95]">
             <Line>Earn free donuts</Line>
             <Line delay={0.1}>every visit.</Line>
           </h2>
-          <FadeIn delay={0.3} className="mt-7 max-w-xl">
-            <p className="text-xl text-cocoa-700 font-medium leading-snug">
+          <FadeIn delay={0.3} className="mt-6 max-w-xl">
+            <p className="text-lg sm:text-xl text-cocoa-700 font-medium leading-snug">
               Sign up free. Order how you like. Stack points toward donuts,
               kolaches, drinks — and a free birthday dozen, every year.
             </p>
           </FadeIn>
-
-          <FadeIn delay={0.4} className="mt-9">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/auth"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 font-bold text-lg shadow-lg shadow-cocoa-900/15 transition-all duration-500 ease-out hover:scale-[1.03]"
-              >
-                Join Rewards
-              </Link>
-              <Link
-                href="/rewards"
-                className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-cream-50 hover:bg-white text-cocoa-900 font-bold text-lg border border-cream-300 transition-all duration-500 ease-out hover:scale-[1.03]"
-              >
-                How it works
-              </Link>
-            </div>
-          </FadeIn>
-
-          <ul className="mt-10 grid sm:grid-cols-3 gap-5">
-            {perks.map(({ Icon, title, body }, i) => (
-              <motion.li
-                key={title}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-8%" }}
-                transition={{ duration: 0.55, delay: 0.5 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={reduceMotion ? {} : { y: -3 }}
-                className="bg-cream-50 rounded-2xl p-5 border border-cream-200 hover:shadow-md transition-shadow duration-300"
-              >
-                <div className="w-10 h-10 rounded-full bg-amber-100 text-cocoa-900 flex items-center justify-center mb-4 border border-amber-200">
-                  <Icon size={18} />
-                </div>
-                <p className="font-display font-black text-cocoa-900 text-lg">
-                  {title}
-                </p>
-                <p className="text-sm text-cocoa-700 mt-1.5 leading-snug">{body}</p>
-              </motion.li>
-            ))}
-          </ul>
         </div>
 
-        {/* Phone mockup with floating UI elements */}
-        <div className="relative flex justify-center lg:justify-end order-1 lg:order-none">
+        {/* ── Block 2: Phone mockup (middle on mobile, right column spanning both rows on desktop) ── */}
+        <div className="relative flex justify-center order-2 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:justify-end">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -257,6 +222,53 @@ export function Rewards() {
               </div>
             </motion.div>
           </motion.div>
+        </div>
+
+        {/* ── Block 3: Details — CTAs + perks (bottom on mobile, bottom-left on desktop) ── */}
+        <div className="order-3 lg:order-none lg:col-start-1 lg:row-start-2">
+          <FadeIn delay={0.4}>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                href="/auth"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 font-bold text-lg shadow-lg shadow-cocoa-900/15 transition-all duration-500 ease-out hover:scale-[1.03]"
+              >
+                Join Rewards
+              </Link>
+              <Link
+                href="/rewards"
+                className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-cream-50 hover:bg-white text-cocoa-900 font-bold text-lg border border-cream-300 transition-all duration-500 ease-out hover:scale-[1.03]"
+              >
+                How it works
+              </Link>
+            </div>
+          </FadeIn>
+
+          {/* 2x2 perk grid — matches the Story section's pillar grid for
+              visual consistency across the homepage. */}
+          <ul className="mt-8 grid grid-cols-2 gap-3 sm:gap-5">
+            {perks.map(({ Icon, title, body }, i) => (
+              <motion.li
+                key={title}
+                initial={{ opacity: 0, y: 18 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-8%" }}
+                transition={{ duration: 0.55, delay: 0.4 + i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={reduceMotion ? {} : { y: -3 }}
+                className="bg-cream-50 rounded-2xl p-4 sm:p-5 border border-cream-200 hover:shadow-md transition-shadow duration-300"
+              >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-100 text-cocoa-900 flex items-center justify-center mb-3 sm:mb-4 border border-amber-200">
+                  <Icon size={16} className="sm:hidden" />
+                  <Icon size={18} className="hidden sm:block" />
+                </div>
+                <p className="font-display font-black text-cocoa-900 text-base sm:text-lg leading-tight">
+                  {title}
+                </p>
+                <p className="text-xs sm:text-sm text-cocoa-700 mt-1 sm:mt-1.5 leading-snug">
+                  {body}
+                </p>
+              </motion.li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

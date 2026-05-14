@@ -30,7 +30,7 @@ export function FeaturedMenu() {
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10 lg:mb-14">
           <div className="max-w-2xl">
             <FadeIn>
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-3">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-4">
                 The Menu
               </p>
             </FadeIn>
@@ -66,12 +66,14 @@ export function FeaturedMenu() {
           })}
         </div>
 
-        {/* Mobile: seamless infinite carousel */}
-        <div className="lg:hidden -mx-4 px-4">
+        {/* Mobile: seamless infinite carousel.
+            Negative-margin + matching padding so the carousel reaches viewport
+            edges while still giving the first/last visible card a 16px buffer. */}
+        <div className="lg:hidden -mx-4">
           <MobileInfiniteCarousel
             items={items}
             ariaLabel="Featured menu items"
-            className="gap-4"
+            className="gap-4 px-4"
             itemClassName="w-[78%] sm:w-[55%]"
             renderItem={(item, idx) => {
               const surface = cardSurfaces[idx % cardSurfaces.length];
@@ -82,6 +84,7 @@ export function FeaturedMenu() {
                   surface={surface}
                   reduceMotion={!!reduceMotion}
                   onAdd={() => setPendingItem(item)}
+                  noEntryAnim
                 />
               );
             }}
@@ -104,25 +107,33 @@ function FeaturedCard({
   surface,
   reduceMotion,
   onAdd,
+  noEntryAnim,
 }: {
   item: MenuItem;
   index: number;
   surface: { bg: string; border: string };
   reduceMotion: boolean;
   onAdd: () => void;
+  /** Skip the scroll-driven entry animation. Used inside the mobile carousel
+      where horizontal scroll would otherwise re-fire the entry on every card,
+      making the carousel feel jittery. */
+  noEntryAnim?: boolean;
 }) {
+  const Wrapper = noEntryAnim ? "div" : motion.div;
+  const wrapperProps = noEntryAnim
+    ? {}
+    : {
+        initial: { opacity: 0, y: 32 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: "-8%" },
+        transition: {
+          duration: 0.7,
+          delay: Math.min(index * 0.08, 0.4),
+          ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+        },
+      };
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 32 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-8%" }}
-      transition={{
-        duration: 0.7,
-        delay: Math.min(index * 0.08, 0.4),
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="group h-full"
-    >
+    <Wrapper {...wrapperProps} className="group h-full w-full">
       <motion.article
         whileHover={reduceMotion ? {} : { y: -8 }}
         transition={{ type: "spring", stiffness: 220, damping: 22 }}
@@ -174,6 +185,6 @@ function FeaturedCard({
           </button>
         </div>
       </motion.article>
-    </motion.div>
+    </Wrapper>
   );
 }

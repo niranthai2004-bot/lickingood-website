@@ -70,11 +70,11 @@ export function Story() {
 
         <div className="lg:col-span-7">
           <FadeIn>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-3">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-4">
               Our Story
             </p>
           </FadeIn>
-          <h2 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-cocoa-900 tracking-tight leading-[0.92]">
+          <h2 className="font-display text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black text-cocoa-900 tracking-tight leading-[0.95]">
             <Line>One family.</Line>
             <Line delay={0.08}>One recipe.</Line>
             <Line delay={0.16}>Made fresh daily.</Line>

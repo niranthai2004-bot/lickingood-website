@@ -149,9 +149,9 @@ export function Navbar() {
               className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-cream-50 shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between p-5 border-b border-cream-200">
-                <span className="font-display text-xl font-black text-cocoa-900">
-                  Menu
-                </span>
+                <Link href="/" onClick={() => setOpen(false)}>
+                  <BrandMark size="sm" />
+                </Link>
                 <button
                   type="button"
                   aria-label="Close menu"

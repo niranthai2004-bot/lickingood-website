@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import {
   coreMenu,
   coreMenuCategories,
@@ -290,16 +290,6 @@ function ItemCard({
             </span>
           )}
         </div>
-        {hasVariants && (
-          <span className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 inline-flex items-center gap-0.5 sm:gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-cocoa-900/90 text-cream-50 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
-            <Plus size={9} className="sm:hidden" />
-            <Plus size={10} className="hidden sm:block" />
-            <span className="sm:hidden">{item.variants!.length}</span>
-            <span className="hidden sm:inline">
-              {item.variants!.length} flavors
-            </span>
-          </span>
-        )}
       </div>
       <div className="p-4 sm:p-6 flex-1 flex flex-col">
         <h3 className="font-display text-base sm:text-xl lg:text-2xl font-black text-cocoa-900 leading-tight line-clamp-2 min-h-[2lh]">

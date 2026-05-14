@@ -3,7 +3,6 @@ import { FeaturedMenu } from "@/components/sections/FeaturedMenu";
 import { Promotions } from "@/components/sections/Promotions";
 import { Rewards } from "@/components/sections/Rewards";
 import { Story } from "@/components/sections/Story";
-import { FlavorVotes } from "@/components/sections/FlavorVotes";
 import { OrderingCTA } from "@/components/sections/OrderingCTA";
 
 export default function Home() {
@@ -14,7 +13,6 @@ export default function Home() {
       <Promotions />
       <Rewards />
       <Story />
-      <FlavorVotes />
       <OrderingCTA />
     </>
   );

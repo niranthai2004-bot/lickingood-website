@@ -71,15 +71,17 @@ export function Promotions() {
           ))}
         </div>
 
-        {/* Mobile: seamless infinite carousel */}
-        <div className="lg:hidden -mx-4 px-4">
+        {/* Mobile: seamless infinite carousel.
+            Negative margin escapes the section padding so the carousel
+            reaches viewport edges while items still get an inner buffer. */}
+        <div className="lg:hidden -mx-4">
           <MobileInfiniteCarousel
             items={promotions}
             ariaLabel="Current promotions"
-            className="gap-4"
+            className="gap-4 px-4"
             itemClassName="w-[82%] sm:w-[60%]"
             renderItem={(promo, idx) => (
-              <PromoCard promo={promo} index={idx} />
+              <PromoCard promo={promo} index={idx} noEntryAnim />
             )}
           />
         </div>
@@ -88,7 +90,17 @@ export function Promotions() {
   );
 }
 
-function PromoCard({ promo, index }: { promo: Promotion; index: number }) {
+function PromoCard({
+  promo,
+  index,
+  noEntryAnim,
+}: {
+  promo: Promotion;
+  index: number;
+  /** Skip whileInView entry animation. Used inside the mobile carousel
+      to prevent re-firing entry on every horizontal swipe. */
+  noEntryAnim?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
 
@@ -98,7 +110,7 @@ function PromoCard({ promo, index }: { promo: Promotion; index: number }) {
     offset: ["start 90%", "center center"],
   });
   const scrollScale = useTransform(scrollYProgress, [0, 1], [0.97, 1]);
-  const scale = reduceMotion ? 1 : scrollScale;
+  const scale = reduceMotion || noEntryAnim ? 1 : scrollScale;
 
   // Cursor-driven photo tilt — gentle, premium, not gimmicky
   const photoMx = useMotionValue(0);
@@ -120,20 +132,26 @@ function PromoCard({ promo, index }: { promo: Promotion; index: number }) {
     photoMy.set(0);
   };
 
+  const entryProps = noEntryAnim
+    ? {}
+    : {
+        initial: { opacity: 0, y: 40 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: "-10%" },
+        transition: {
+          duration: 0.8,
+          delay: index * 0.1,
+          ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+        },
+      };
+
   return (
     <motion.article
       ref={ref}
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10%" }}
-      transition={{
-        duration: 0.8,
-        delay: index * 0.1,
-        ease: [0.22, 1, 0.36, 1],
-      }}
+      {...entryProps}
       style={{ scale }}
       whileHover={reduceMotion ? {} : { y: -6 }}
-      className={`group relative overflow-hidden rounded-card ${promo.bg} border ${promo.border} shadow-sm hover:shadow-2xl transition-shadow duration-500`}
+      className={`group relative overflow-hidden rounded-card ${promo.bg} border ${promo.border} shadow-sm hover:shadow-2xl transition-shadow duration-500 h-full w-full`}
     >
       <div className="p-6 lg:p-7">
         <div
