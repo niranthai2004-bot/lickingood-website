@@ -212,7 +212,7 @@ function ItemsGrid({
   onOpenVariants: (item: CoreMenuItem) => void;
 }) {
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-7">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-7">
       {items.map((item, i) => (
         <ItemCard
           key={item.id}
@@ -291,25 +291,33 @@ function ItemCard({
           )}
         </div>
         {hasVariants && (
-          <span className="absolute top-3 right-3 z-20 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cocoa-900/90 text-cream-50 text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
-            <Plus size={10} />
-            {item.variants!.length} flavors
+          <span className="absolute top-2 right-2 sm:top-3 sm:right-3 z-20 inline-flex items-center gap-0.5 sm:gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full bg-cocoa-900/90 text-cream-50 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur">
+            <Plus size={9} className="sm:hidden" />
+            <Plus size={10} className="hidden sm:block" />
+            <span className="sm:hidden">{item.variants!.length}</span>
+            <span className="hidden sm:inline">
+              {item.variants!.length} flavors
+            </span>
           </span>
         )}
       </div>
-      <div className="p-6 flex-1 flex flex-col">
-        <h3 className="font-display text-xl sm:text-2xl font-black text-cocoa-900 leading-tight line-clamp-2 min-h-[2lh]">
+      <div className="p-4 sm:p-6 flex-1 flex flex-col">
+        <h3 className="font-display text-base sm:text-xl lg:text-2xl font-black text-cocoa-900 leading-tight line-clamp-2 min-h-[2lh]">
           {item.name}
         </h3>
-        <p className="mt-2 text-base text-cocoa-700 leading-snug line-clamp-2 min-h-[2lh]">
+        <p className="mt-1 sm:mt-2 text-xs sm:text-base text-cocoa-700 leading-snug line-clamp-2 min-h-[2lh]">
           {item.description}
         </p>
 
         {hasVariants && (
-          <div className="mt-4">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-cocoa-900 group-hover:gap-2 transition-all duration-300">
+          <div className="mt-3 sm:mt-4">
+            <span className="inline-flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold text-cocoa-900 group-hover:gap-2 transition-all duration-300">
               See all flavors
-              <ChevronDown size={13} className="rotate-[-90deg]" />
+              <ChevronDown size={12} className="rotate-[-90deg] sm:hidden" />
+              <ChevronDown
+                size={13}
+                className="rotate-[-90deg] hidden sm:block"
+              />
             </span>
           </div>
         )}

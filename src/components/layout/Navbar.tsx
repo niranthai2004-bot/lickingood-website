@@ -61,6 +61,7 @@ export function Navbar() {
     return null;
 
   return (
+    <>
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
         scrolled
@@ -122,7 +123,13 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile menu */}
+    </header>
+
+      {/* Mobile menu — rendered as a SIBLING of the header (not a child),
+          otherwise the header's backdrop-blur creates a containing block
+          that breaks `fixed inset-0` once the user scrolls, making the
+          overlay collapse into the header's narrow strip. Higher z-index
+          (z-[60]) sits above the z-50 header. */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -130,7 +137,7 @@ export function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="lg:hidden fixed inset-0 z-50 bg-cocoa-900/40 backdrop-blur-sm"
+            className="lg:hidden fixed inset-0 z-[60] bg-cocoa-900/40 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           >
             <motion.div
@@ -192,6 +199,6 @@ export function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
-    </header>
+    </>
   );
 }

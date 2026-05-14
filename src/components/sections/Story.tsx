@@ -87,7 +87,7 @@ export function Story() {
             </p>
           </FadeIn>
 
-          <ul className="mt-10 grid sm:grid-cols-2 gap-5">
+          <ul className="mt-10 grid grid-cols-2 gap-3 sm:gap-5">
             {pillars.map(({ Icon, title, body }, i) => (
               <motion.li
                 key={title}
@@ -100,15 +100,16 @@ export function Story() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 whileHover={reduceMotion ? {} : { y: -4 }}
-                className="rounded-card bg-cream-50 border border-cream-200 p-6 hover:shadow-md transition-shadow duration-300"
+                className="rounded-card bg-cream-50 border border-cream-200 p-4 sm:p-6 hover:shadow-md transition-shadow duration-300"
               >
-                <div className="w-11 h-11 rounded-full bg-amber-100 border border-amber-200 text-cocoa-900 flex items-center justify-center mb-4">
-                  <Icon size={20} />
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-amber-100 border border-amber-200 text-cocoa-900 flex items-center justify-center mb-3 sm:mb-4">
+                  <Icon size={18} className="sm:hidden" />
+                  <Icon size={20} className="hidden sm:block" />
                 </div>
-                <p className="font-display font-black text-cocoa-900 text-xl">
+                <p className="font-display font-black text-cocoa-900 text-base sm:text-xl leading-tight">
                   {title}
                 </p>
-                <p className="text-sm text-cocoa-700 mt-1.5 leading-snug">
+                <p className="text-xs sm:text-sm text-cocoa-700 mt-1 sm:mt-1.5 leading-snug">
                   {body}
                 </p>
               </motion.li>

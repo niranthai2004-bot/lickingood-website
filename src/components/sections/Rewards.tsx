@@ -73,7 +73,7 @@ export function Rewards() {
       />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12 items-center">
-        <div>
+        <div className="order-2 lg:order-none">
           <FadeIn>
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-4">
               Lickin&apos; Good Rewards
@@ -131,7 +131,7 @@ export function Rewards() {
         </div>
 
         {/* Phone mockup with floating UI elements */}
-        <div className="relative flex justify-center lg:justify-end">
+        <div className="relative flex justify-center lg:justify-end order-1 lg:order-none">
           <motion.div
             initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}

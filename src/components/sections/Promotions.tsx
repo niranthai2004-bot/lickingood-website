@@ -14,6 +14,7 @@ import { ArrowUpRight } from "lucide-react";
 import { promotions, ticker, type Promotion } from "@/data/promotions";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
+import { MobileInfiniteCarousel } from "@/components/ui/MobileInfiniteCarousel";
 
 export function Promotions() {
   const tickerLoop = [...ticker, ...ticker];
@@ -63,11 +64,24 @@ export function Promotions() {
           </FadeIn>
         </div>
 
-        {/* Promo cards */}
-        <div className="grid lg:grid-cols-3 gap-6 lg:gap-7">
+        {/* Desktop: 3-col grid */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-6 lg:gap-7">
           {promotions.map((promo, i) => (
             <PromoCard key={promo.id} promo={promo} index={i} />
           ))}
+        </div>
+
+        {/* Mobile: seamless infinite carousel */}
+        <div className="lg:hidden -mx-4 px-4">
+          <MobileInfiniteCarousel
+            items={promotions}
+            ariaLabel="Current promotions"
+            className="gap-4"
+            itemClassName="w-[82%] sm:w-[60%]"
+            renderItem={(promo, idx) => (
+              <PromoCard promo={promo} index={idx} />
+            )}
+          />
         </div>
       </div>
     </section>
