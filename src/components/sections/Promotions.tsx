@@ -14,7 +14,7 @@ import { ArrowUpRight } from "lucide-react";
 import { promotions, ticker, type Promotion } from "@/data/promotions";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
-import { MobileInfiniteCarousel } from "@/components/ui/MobileInfiniteCarousel";
+import { MobileCarousel } from "@/components/ui/MobileCarousel";
 
 export function Promotions() {
   const tickerLoop = [...ticker, ...ticker];
@@ -71,11 +71,11 @@ export function Promotions() {
           ))}
         </div>
 
-        {/* Mobile: seamless infinite carousel.
-            Negative margin escapes the section padding so the carousel
-            reaches viewport edges while items still get an inner buffer. */}
+        {/* Mobile: native horizontal swipe carousel. Finite, ends at the
+            last promo. Negative margin lets the track reach viewport edges
+            while px-4 inside gives the first/last card a 16px buffer. */}
         <div className="lg:hidden -mx-4">
-          <MobileInfiniteCarousel
+          <MobileCarousel
             items={promotions}
             ariaLabel="Current promotions"
             className="gap-4 px-4"

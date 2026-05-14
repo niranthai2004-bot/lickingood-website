@@ -7,7 +7,7 @@ import { useState } from "react";
 import { featuredMenu, type MenuItem } from "@/data/menu";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
-import { MobileInfiniteCarousel } from "@/components/ui/MobileInfiniteCarousel";
+import { MobileCarousel } from "@/components/ui/MobileCarousel";
 import { OrderTypeModal } from "@/components/pickup/OrderTypeModal";
 
 const cardSurfaces = [
@@ -66,11 +66,12 @@ export function FeaturedMenu() {
           })}
         </div>
 
-        {/* Mobile: seamless infinite carousel.
-            Negative-margin + matching padding so the carousel reaches viewport
-            edges while still giving the first/last visible card a 16px buffer. */}
+        {/* Mobile: native horizontal swipe carousel. Finite — reaches a
+            natural stop at the last item. Negative margin escapes the
+            section's container padding so the carousel can run edge-to-edge
+            while the inner `px-4` gives the first/last card a 16px buffer. */}
         <div className="lg:hidden -mx-4">
-          <MobileInfiniteCarousel
+          <MobileCarousel
             items={items}
             ariaLabel="Featured menu items"
             className="gap-4 px-4"
