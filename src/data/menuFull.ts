@@ -6,6 +6,16 @@ const u = (tags: string, lock: number, w = 900, h = 720) =>
 /** Subtle availability indicators — sample data for UI; real values come from Square inventory later. */
 export type Availability = "fresh" | "limited" | "almost-gone" | "sold-out";
 
+/** Variation option shown in the flavor/size picker. */
+export type PickupVariation = {
+  /** Unique DB UUID for this variation. Becomes the cart-line key when
+      the customer picks this option. */
+  id: string;
+  name: string;
+  /** Price in cents from Square; null if Square hasn't set a price. */
+  priceCents: number | null;
+};
+
 /** Pickup-flow shape: every browse item, plus price, availability, and dozen-eligibility. */
 export type PickupItem = MenuItem & {
   price: number;
@@ -22,6 +32,16 @@ export type PickupItem = MenuItem & {
    * items continue to fall back to the static map.
    */
   bundleTier?: BundleTier;
+  /**
+   * Per-item flavor/size variations. Only populated for items with more
+   * than one variation in Square — single-variation items omit this field
+   * since there's no real choice to present.
+   *
+   * When the customer picks a variation, the cart entry uses a synthetic
+   * id of the form `${item.id}__${variation.id}` so each flavor is a
+   * distinct line.
+   */
+  variations?: PickupVariation[];
 };
 
 /**

@@ -194,32 +194,40 @@ export async function GET(
     }
   }
 
-  // ─── 4. First variation per item (for price) ───
+  // ─── 4. All variations per item ───
+  // We fetch every variation (not just the first) so multi-variation items
+  // can show a flavor/size picker on the customer page. The "first" entry
+  // still drives the default display price on the card.
   const itemUuids = liveItems.map((it) => it.id);
   const { data: variations } = await admin
     .from("merchant_catalog_item_variations")
-    .select("id, item_id, square_variation_id, price_cents, ordinal")
+    .select("id, item_id, name, square_variation_id, price_cents, ordinal")
     .in("item_id", itemUuids)
     .order("ordinal", { ascending: true });
 
-  const firstVariationByItem = new Map<
-    string,
-    { id: string; square_variation_id: string; price_cents: number | null }
-  >();
+  type VariationRow = {
+    id: string;
+    name: string;
+    square_variation_id: string;
+    price_cents: number | null;
+  };
+  const variationsByItem = new Map<string, VariationRow[]>();
   for (const v of variations ?? []) {
-    if (!firstVariationByItem.has(v.item_id)) {
-      firstVariationByItem.set(v.item_id, {
-        id: v.id,
-        square_variation_id: v.square_variation_id,
-        price_cents: v.price_cents,
-      });
-    }
+    const list = variationsByItem.get(v.item_id) ?? [];
+    list.push({
+      id: v.id,
+      name: v.name,
+      square_variation_id: v.square_variation_id,
+      price_cents: v.price_cents,
+    });
+    variationsByItem.set(v.item_id, list);
   }
 
   // ─── 5. Inventory state for those variations at this location ───
-  const variationIds = Array.from(firstVariationByItem.values()).map(
-    (v) => v.id,
-  );
+  const variationIds: string[] = [];
+  for (const list of variationsByItem.values()) {
+    for (const v of list) variationIds.push(v.id);
+  }
   const inventoryByVariation = new Map<
     string,
     { stock_count: number | null; state: string | null }
@@ -242,8 +250,11 @@ export async function GET(
   const seenCategoryIds = new Set<string>();
   const items = liveItems
     .map((it, idx) => {
-      const variation = firstVariationByItem.get(it.id);
-      const inv = variation ? inventoryByVariation.get(variation.id) : null;
+      const itemVariations = variationsByItem.get(it.id) ?? [];
+      const primaryVariation = itemVariations[0];
+      const inv = primaryVariation
+        ? inventoryByVariation.get(primaryVariation.id)
+        : null;
       const availability = inferAvailability(
         inv?.stock_count ?? null,
         inv?.state ?? null,
@@ -258,6 +269,18 @@ export async function GET(
       const categorySlug = slugify(categoryName) || "menu";
       seenCategoryIds.add(categorySlug);
 
+      // Variations payload: only include if there's actually a meaningful
+      // choice (more than one). Single-variation items don't need a picker;
+      // the customer just taps "Add" and the only variation is implicit.
+      const variationsPayload =
+        itemVariations.length > 1
+          ? itemVariations.map((v) => ({
+              id: v.id,
+              name: v.name,
+              priceCents: v.price_cents,
+            }))
+          : undefined;
+
       return {
         id: it.id,
         name: it.name,
@@ -268,10 +291,14 @@ export async function GET(
           `https://loremflickr.com/900/720/donut,bakery?lock=${4000 + idx}`,
         // Tone is purely visual fallback; pick a neutral cream tone.
         tone: "bg-cream-100",
-        price: variation?.price_cents != null ? variation.price_cents / 100 : 0,
+        price:
+          primaryVariation?.price_cents != null
+            ? primaryVariation.price_cents / 100
+            : 0,
         bundleTier: inferBundleTier(cat?.name ?? null, it.name),
         dozenEligible: inferDozenEligible(cat?.name ?? null, it.name),
         availability,
+        variations: variationsPayload,
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);

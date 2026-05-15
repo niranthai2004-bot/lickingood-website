@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  Check,
   Clock,
   Loader2,
   MapPin,
@@ -74,6 +75,8 @@ export default function PickupMenuPage() {
   const [bundleBuild, setBundleBuild] = useState<BundleBuildLine[]>([]);
   const [bundleMode, setBundleMode] = useState(false);
   const [bundleSize, setBundleSize] = useState<BundleSize>(12);
+  // Variation picker — opened when a multi-variation item is "added".
+  const [pickerItem, setPickerItem] = useState<PickupItem | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const firstCategoryRef = useRef<HTMLDivElement>(null);
 
@@ -160,9 +163,35 @@ export default function PickupMenuPage() {
 
   /* ---------- Cart-vs-Bundle routing ---------- */
 
+  /** Add one of the given (synthetic-variant or plain) item to the cart. */
+  const addToCart = (item: PickupItem) => {
+    setCart((prev) => {
+      const existing = prev.find(
+        (l): l is Extract<CartLine, { kind: "item" }> =>
+          l.kind === "item" && l.item.id === item.id,
+      );
+      if (existing) {
+        return prev.map((l) =>
+          l.kind === "item" && l.item.id === item.id
+            ? { ...l, qty: l.qty + 1 }
+            : l,
+        );
+      }
+      return [...prev, { kind: "item", item, qty: 1 }];
+    });
+  };
+
   const onIncrement = (id: string) => {
     const item = items.find((m) => m.id === id);
     if (!item) return;
+    // Multi-variation items can't auto-add — open the picker so the
+    // customer chooses a flavor / size first. Bundle mode does NOT apply
+    // to these items because the picker flow doesn't fit a Build-A-Dozen
+    // box. (They're also not dozenEligible per the API heuristic.)
+    if (item.variations && item.variations.length > 1) {
+      setPickerItem(item);
+      return;
+    }
     if (bundleMode && item.dozenEligible) {
       setBundleBuild((prev) => {
         const existing = prev.find((l) => l.item.id === id);
@@ -174,21 +203,31 @@ export default function PickupMenuPage() {
         return [...prev, { item, qty: 1 }];
       });
     } else {
-      setCart((prev) => {
-        const existing = prev.find(
-          (l): l is Extract<CartLine, { kind: "item" }> =>
-            l.kind === "item" && l.item.id === id,
-        );
-        if (existing) {
-          return prev.map((l) =>
-            l.kind === "item" && l.item.id === id
-              ? { ...l, qty: l.qty + 1 }
-              : l,
-          );
-        }
-        return [...prev, { kind: "item", item, qty: 1 }];
-      });
+      addToCart(item);
     }
+  };
+
+  /**
+   * Confirm a variation selection from the picker and add it as a distinct
+   * cart line. Synthetic id `${parent}__${variationId}` keeps each flavor
+   * separate so quantities don't merge across flavors.
+   */
+  const onConfirmVariation = (
+    parent: PickupItem,
+    variation: NonNullable<PickupItem["variations"]>[number],
+  ) => {
+    const syntheticItem: PickupItem = {
+      ...parent,
+      id: `${parent.id}__${variation.id}`,
+      name: `${parent.name} — ${variation.name}`,
+      price:
+        variation.priceCents != null ? variation.priceCents / 100 : parent.price,
+      // Variant-selected items don't carry their own variations array onward;
+      // cart should treat them as plain items.
+      variations: undefined,
+    };
+    addToCart(syntheticItem);
+    setPickerItem(null);
   };
 
   const onDecrement = (id: string) => {
@@ -290,6 +329,17 @@ export default function PickupMenuPage() {
     setBundleBuild([]);
     setBundleMode(false);
   };
+
+  // Lock body scroll while the variation picker modal is open
+  useEffect(() => {
+    if (pickerItem) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [pickerItem]);
 
   // ─── Loading skeleton ───
   if (status === "loading") {
@@ -592,7 +642,149 @@ export default function PickupMenuPage() {
           />
         </>
       )}
+
+      {/* Variation picker — opens when the customer taps Add on a
+          multi-variation item (Cake Donut → pick a flavor, etc.) */}
+      <AnimatePresence>
+        {pickerItem && (
+          <VariationPickerModal
+            item={pickerItem}
+            onClose={() => setPickerItem(null)}
+            onConfirm={(variation) =>
+              onConfirmVariation(pickerItem, variation)
+            }
+          />
+        )}
+      </AnimatePresence>
     </>
+  );
+}
+
+function VariationPickerModal({
+  item,
+  onClose,
+  onConfirm,
+}: {
+  item: PickupItem;
+  onClose: () => void;
+  onConfirm: (variation: NonNullable<PickupItem["variations"]>[number]) => void;
+}) {
+  const variations = item.variations ?? [];
+  const [selectedId, setSelectedId] = useState<string>(variations[0]?.id ?? "");
+
+  const selected = variations.find((v) => v.id === selectedId);
+  const displayPrice =
+    selected?.priceCents != null ? selected.priceCents / 100 : item.price;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[70] bg-cocoa-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center px-0 sm:px-4 py-0 sm:py-8"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 32, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-cream-50 sm:rounded-3xl rounded-t-3xl border-t sm:border border-cream-200 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+      >
+        {/* Header image */}
+        <div className="relative aspect-[16/9] overflow-hidden shrink-0">
+          <FoodImage
+            src={item.image}
+            alt={item.name}
+            fallbackBg={item.tone}
+            className="w-full h-full"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-cream-50/95 hover:bg-cream-50 flex items-center justify-center text-cocoa-900 shadow-md backdrop-blur transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cocoa-700 mb-1.5">
+            Pick a flavor
+          </p>
+          <h2 className="font-display text-2xl sm:text-3xl font-black text-cocoa-900 leading-tight">
+            {item.name}
+          </h2>
+          {item.description && (
+            <p className="mt-2 text-sm text-cocoa-700 leading-snug">
+              {item.description}
+            </p>
+          )}
+
+          {/* Variation radio buttons */}
+          <ul className="mt-5 space-y-2">
+            {variations.map((v) => {
+              const isSelected = selectedId === v.id;
+              const priceLabel =
+                v.priceCents != null
+                  ? `$${(v.priceCents / 100).toFixed(2)}`
+                  : "";
+              return (
+                <li key={v.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(v.id)}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border transition-colors text-left ${
+                      isSelected
+                        ? "border-cocoa-900 bg-cream-100"
+                        : "border-cream-200 bg-cream-50 hover:bg-cream-100"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                          isSelected
+                            ? "border-cocoa-900 bg-cocoa-900"
+                            : "border-cream-300"
+                        }`}
+                      >
+                        {isSelected && (
+                          <Check size={11} className="text-cream-50" />
+                        )}
+                      </span>
+                      <span className="text-sm font-bold text-cocoa-900 truncate">
+                        {v.name}
+                      </span>
+                    </span>
+                    {priceLabel && (
+                      <span className="text-sm font-bold text-cocoa-900 tabular-nums shrink-0">
+                        {priceLabel}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* Sticky bottom CTA */}
+        <div className="border-t border-cream-200 p-4 sm:p-5 bg-cream-50 shrink-0">
+          <button
+            type="button"
+            onClick={() => selected && onConfirm(selected)}
+            disabled={!selected}
+            className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-cocoa-900 hover:bg-cocoa-800 disabled:opacity-60 text-cream-50 font-bold text-sm transition-all hover:scale-[1.01]"
+          >
+            <Plus size={15} />
+            Add — ${displayPrice.toFixed(2)}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -612,11 +804,14 @@ function PickupItemCard({
   onDecrement: (id: string) => void;
 }) {
   const soldOut = item.availability === "sold-out";
+  const hasFlavorChoice = !!item.variations && item.variations.length > 1;
   const addLabel = soldOut
     ? "Sold out"
-    : bundleMode && item.dozenEligible
-      ? "Add to box"
-      : "Add";
+    : hasFlavorChoice
+      ? "Choose flavor"
+      : bundleMode && item.dozenEligible
+        ? "Add to box"
+        : "Add";
 
   return (
     <motion.article

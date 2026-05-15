@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -12,39 +11,62 @@ import {
   ShoppingBag,
   X,
 } from "lucide-react";
-import { locations, type Location } from "@/data/locations";
+import type { PublicLocation } from "@/lib/locations/types";
 import { FadeIn, Line } from "@/components/ui/Reveal";
 
-// Mock recent / saved address suggestions until Google Places is wired in.
-const sampleAddresses = [
-  { label: "8600 Cottage Hill Rd, Mobile, AL 36695" },
-  { label: "300 Government St, Mobile, AL 36602" },
-  { label: "200 Eastern Shore Center, Fairhope, AL 36532" },
-  { label: "1600 Gulf Shores Pkwy, Gulf Shores, AL 36542" },
-  { label: "100 N Palafox St, Pensacola, FL 32502" },
+// Address suggestions are aggregated from the merchant locations we've
+// actually synced (treats their cities/streets as known address hints).
+// Real Google Places autocomplete lands in Phase D-b.
+const SAMPLE_ADDRESS_HINTS = [
+  "Mobile, AL",
+  "Fairhope, AL",
+  "Gulf Shores, AL",
+  "Pensacola, FL",
 ];
 
 export default function DeliveryPickerPage() {
-  const router = useRouter();
+  const [locations, setLocations] = useState<PublicLocation[]>([]);
   const [query, setQuery] = useState("");
   const [openDropdown, setOpenDropdown] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Address suggestions: filter sample addresses, plus any matches from real
-  // location addresses (treats them as known addresses in the area).
+  // Pull the live merchant-locations list once on mount. Only shops with
+  // delivery_enabled = true are eligible. Phase D-b will add geocoding +
+  // haversine ranking so we actually compute distance from the customer.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/public/locations", { cache: "no-store" });
+        const json = (await res.json()) as { locations?: PublicLocation[] };
+        if (cancelled) return;
+        setLocations(
+          (json.locations ?? []).filter((l) => l.delivery !== false),
+        );
+      } catch {
+        if (cancelled) return;
+        setLocations([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Build address suggestions from the merchant addresses we've already
+  // synced, plus a handful of broader regional hints.
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sampleAddresses;
     const fromLocations = locations
       .map((l) => ({ label: l.address }))
-      .filter((s) => s.label.toLowerCase().includes(q));
-    const fromSamples = sampleAddresses.filter((s) =>
-      s.label.toLowerCase().includes(q),
-    );
-    return [...fromLocations, ...fromSamples].slice(0, 6);
-  }, [query]);
+      .filter((s) => !!s.label);
+    const fromHints = SAMPLE_ADDRESS_HINTS.map((label) => ({ label }));
+    const all = [...fromLocations, ...fromHints];
+    if (!q) return all.slice(0, 6);
+    return all.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 6);
+  }, [query, locations]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -57,16 +79,18 @@ export default function DeliveryPickerPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // After address selection, surface the closest shops as suggestions.
-  // (Real distance ranking will come from a geocoding API; for now show all
-  // shops grouped by state matching the selected address's state.)
-  const nearestLocations = useMemo<Location[]>(() => {
+  // After address selection, surface the most-relevant shops. Real
+  // distance ranking ships in Phase D-b (geocoding + haversine); for
+  // now we filter by state extracted from the address string.
+  const nearestLocations = useMemo<PublicLocation[]>(() => {
     if (!selectedAddress) return [];
-    const isFL = /FL/i.test(selectedAddress);
-    return isFL
-      ? locations.filter((l) => l.state === "FL")
-      : locations.filter((l) => l.state === "AL");
-  }, [selectedAddress]);
+    const isFL = /\bFL\b/i.test(selectedAddress);
+    const isAL = /\bAL\b/i.test(selectedAddress);
+    if (isFL) return locations.filter((l) => l.state === "FL");
+    if (isAL) return locations.filter((l) => l.state === "AL");
+    // No state hint — just show every delivery-enabled location.
+    return locations;
+  }, [selectedAddress, locations]);
 
   const handleSelectAddress = (label: string) => {
     setSelectedAddress(label);
@@ -237,9 +261,15 @@ export default function DeliveryPickerPage() {
             </FadeIn>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+              {nearestLocations.length === 0 && (
+                <p className="text-sm text-cocoa-700 sm:col-span-2 lg:col-span-3">
+                  No delivery shops near that address yet. Try another address
+                  or switch to pickup.
+                </p>
+              )}
               {nearestLocations.map((loc, i) => (
                 <motion.article
-                  key={loc.id}
+                  key={loc.slug}
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.1 }}
@@ -250,18 +280,40 @@ export default function DeliveryPickerPage() {
                   }}
                   className="rounded-card overflow-hidden bg-cream-50 border border-cream-200 shadow-sm hover:shadow-xl transition-shadow duration-500 p-5"
                 >
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-cream-100 text-cocoa-900 text-[10px] font-black uppercase tracking-wider mb-3">
-                    {loc.state} · ~ {Math.round(2 + Math.random() * 8)} min away
-                  </span>
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    {loc.state && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-cream-100 text-cocoa-900 text-[10px] font-black uppercase tracking-wider">
+                        {loc.state}
+                      </span>
+                    )}
+                    {loc.todayLabel &&
+                      loc.todayLabel !== "Hours not available" && (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                            loc.isOpenNow
+                              ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                              : "bg-stone-100 text-stone-700 border-stone-200"
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              loc.isOpenNow ? "bg-emerald-500" : "bg-stone-400"
+                            }`}
+                          />
+                          {loc.isOpenNow ? "Open" : "Closed"}
+                        </span>
+                      )}
+                  </div>
                   <h3 className="font-display text-xl font-black text-cocoa-900 leading-tight">
-                    {loc.neighborhood ?? loc.city}
+                    {loc.name}
                   </h3>
                   <p className="text-xs text-cocoa-700 mt-1 truncate">
                     {loc.address}
                   </p>
+                  {/* Delivery selection routes to /order/pickup/[slug] for now —
+                      the menu is the same; fulfillment is decided at checkout. */}
                   <Link
-                    onClick={() => router.refresh()}
-                    href={`/order/pickup/${loc.id}`}
+                    href={`/order/pickup/${loc.slug}`}
                     className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 text-xs font-bold transition-colors"
                   >
                     <Bike size={12} /> Start delivery order
