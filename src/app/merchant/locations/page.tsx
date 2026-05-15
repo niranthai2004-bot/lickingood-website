@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  ArchiveRestore,
   ArrowUpRight,
   ExternalLink,
   Loader2,
   MapPin,
   Power,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant/MerchantShell";
 import { supabase } from "@/lib/supabaseClient";
@@ -25,6 +27,7 @@ type MerchantLocation = {
   slug: string | null;
   square_location_id: string | null;
   is_active: boolean;
+  archived_at: string | null;
 };
 
 export default function MerchantLocationsPage() {
@@ -34,14 +37,15 @@ export default function MerchantLocationsPage() {
   const [merchantId, setMerchantId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const loadLocations = async (mId: string) => {
     const { data: locs } = await supabase
       .from("merchant_locations")
       .select(
-        "id, location_name, address, city, state, zip, phone, slug, square_location_id, is_active",
+        "id, location_name, address, city, state, zip, phone, slug, square_location_id, is_active, archived_at",
       )
       .eq("merchant_id", mId)
       .order("created_at", { ascending: true });
@@ -92,18 +96,40 @@ export default function MerchantLocationsPage() {
 
   const handleToggleActive = async (loc: MerchantLocation) => {
     if (!merchantId) return;
-    setTogglingId(loc.id);
+    setBusyId(loc.id);
     const { error } = await supabase
       .from("merchant_locations")
       .update({ is_active: !loc.is_active })
       .eq("id", loc.id);
     if (!error) await loadLocations(merchantId);
-    setTogglingId(null);
+    setBusyId(null);
+  };
+
+  const handleArchive = async (loc: MerchantLocation) => {
+    if (!merchantId) return;
+    const confirmText = loc.archived_at
+      ? `Restore "${loc.location_name}"? It will reappear on the customer site.`
+      : `Archive "${loc.location_name}"? It will be hidden from the customer site and from future Square syncs (re-pulling won't bring it back unless you restore it).`;
+    if (!window.confirm(confirmText)) return;
+
+    setBusyId(loc.id);
+    const { error } = await supabase
+      .from("merchant_locations")
+      .update({ archived_at: loc.archived_at ? null : new Date().toISOString() })
+      .eq("id", loc.id);
+    if (!error) await loadLocations(merchantId);
+    setBusyId(null);
   };
 
   if (!authChecked) return null;
 
-  const activeCount = locations.filter((l) => l.is_active).length;
+  const visibleLocations = showArchived
+    ? locations
+    : locations.filter((l) => !l.archived_at);
+  const activeCount = locations.filter(
+    (l) => l.is_active && !l.archived_at,
+  ).length;
+  const archivedCount = locations.filter((l) => l.archived_at).length;
 
   return (
     <MerchantShell businessName={businessName ?? undefined}>
@@ -118,6 +144,7 @@ export default function MerchantLocationsPage() {
           {locations.length > 0 && (
             <p className="mt-2 text-sm text-cocoa-700">
               {activeCount} active · {locations.length} total
+              {archivedCount > 0 && ` · ${archivedCount} archived`}
             </p>
           )}
         </div>
@@ -148,14 +175,27 @@ export default function MerchantLocationsPage() {
         </p>
       )}
 
-      <p className="text-sm text-cocoa-700 mb-6 max-w-2xl">
+      <p className="text-sm text-cocoa-700 mb-4 max-w-2xl">
         Each shop maps to a Square Location ID. Connect Square once — every
-        location on your account syncs automatically and appears on the
-        customer site. Toggle a shop off to hide it from customer ordering
-        without unlinking it.
+        location on your account syncs automatically. Disable to temporarily
+        hide a shop from customers. Archive to remove it from the customer
+        site AND from future Square syncs (re-pulling won&apos;t resurrect
+        it until you restore).
       </p>
 
-      {locations.length === 0 ? (
+      {archivedCount > 0 && (
+        <label className="inline-flex items-center gap-2 mb-6 text-xs font-bold text-cocoa-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => setShowArchived(e.target.checked)}
+            className="rounded border-cream-300 text-cocoa-900 focus:ring-cocoa-900"
+          />
+          Show archived ({archivedCount})
+        </label>
+      )}
+
+      {visibleLocations.length === 0 ? (
         <div className="rounded-3xl bg-cream-100 border border-cream-200 p-10 text-center">
           <MapPin size={20} className="text-cocoa-700 mx-auto mb-2" />
           <p className="font-display font-black text-cocoa-900">
@@ -168,83 +208,108 @@ export default function MerchantLocationsPage() {
         </div>
       ) : (
         <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {locations.map((loc) => (
-            <li
-              key={loc.id}
-              className={`rounded-2xl bg-cream-50 border p-5 transition-opacity ${
-                loc.is_active
-                  ? "border-cream-200"
-                  : "border-cream-200 opacity-70"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-display text-lg font-black text-cocoa-900 leading-tight truncate">
-                    {loc.location_name}
-                  </p>
-                  <p className="text-xs text-cocoa-700 mt-1">
-                    {[loc.city, loc.state].filter(Boolean).join(", ") || "—"}
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0 ${
-                    loc.is_active
-                      ? "bg-emerald-50 text-emerald-900 border-emerald-200"
-                      : "bg-cream-100 text-cocoa-700 border-cream-200"
-                  }`}
-                >
-                  {loc.is_active ? "Active" : "Off"}
-                </span>
-              </div>
-
-              {loc.address && (
-                <p className="mt-3 text-xs text-cocoa-700 leading-snug">
-                  {loc.address}
-                </p>
-              )}
-              {loc.phone && (
-                <p className="mt-1 text-xs text-cocoa-700">{loc.phone}</p>
-              )}
-
-              <dl className="mt-3 text-[11px] divide-y divide-cream-200">
-                <Row label="URL slug" value={loc.slug ?? "not generated"} mono />
-                <Row
-                  label="Square ID"
-                  value={loc.square_location_id ?? "not mapped"}
-                  mono
-                />
-              </dl>
-
-              <div className="mt-4 flex items-center gap-2 flex-wrap">
-                {loc.slug && loc.is_active && (
-                  <Link
-                    href={`/order/pickup/${loc.slug}`}
-                    target="_blank"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-[11px] font-bold transition-colors"
+          {visibleLocations.map((loc) => {
+            const archived = !!loc.archived_at;
+            const live = loc.is_active && !archived;
+            return (
+              <li
+                key={loc.id}
+                className={`rounded-2xl bg-cream-50 border p-5 transition-opacity ${
+                  live ? "border-cream-200" : "border-cream-200 opacity-70"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-display text-lg font-black text-cocoa-900 leading-tight truncate">
+                      {loc.location_name}
+                    </p>
+                    <p className="text-xs text-cocoa-700 mt-1">
+                      {[loc.city, loc.state].filter(Boolean).join(", ") || "—"}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0 ${
+                      archived
+                        ? "bg-stone-100 text-stone-700 border-stone-200"
+                        : live
+                          ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                          : "bg-amber-50 text-amber-900 border-amber-200"
+                    }`}
                   >
-                    <ExternalLink size={11} /> View on site
-                  </Link>
+                    {archived ? "Archived" : live ? "Active" : "Off"}
+                  </span>
+                </div>
+
+                {loc.address && (
+                  <p className="mt-3 text-xs text-cocoa-700 leading-snug">
+                    {loc.address}
+                  </p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleToggleActive(loc)}
-                  disabled={togglingId === loc.id}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors disabled:opacity-60 ${
-                    loc.is_active
-                      ? "bg-cream-100 hover:bg-cream-200 text-cocoa-900"
-                      : "bg-cocoa-900 hover:bg-cocoa-800 text-cream-50"
-                  }`}
-                >
-                  {togglingId === loc.id ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : (
-                    <Power size={11} />
+                {loc.phone && (
+                  <p className="mt-1 text-xs text-cocoa-700">{loc.phone}</p>
+                )}
+
+                <dl className="mt-3 text-[11px] divide-y divide-cream-200">
+                  <Row label="URL slug" value={loc.slug ?? "not generated"} mono />
+                  <Row
+                    label="Square ID"
+                    value={loc.square_location_id ?? "not mapped"}
+                    mono
+                  />
+                </dl>
+
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  {!archived && loc.slug && live && (
+                    <Link
+                      href={`/order/pickup/${loc.slug}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-[11px] font-bold transition-colors"
+                    >
+                      <ExternalLink size={11} /> View on site
+                    </Link>
                   )}
-                  {loc.is_active ? "Disable" : "Enable"}
-                </button>
-              </div>
-            </li>
-          ))}
+                  {!archived && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(loc)}
+                      disabled={busyId === loc.id}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors disabled:opacity-60 ${
+                        loc.is_active
+                          ? "bg-cream-100 hover:bg-cream-200 text-cocoa-900"
+                          : "bg-cocoa-900 hover:bg-cocoa-800 text-cream-50"
+                      }`}
+                    >
+                      {busyId === loc.id ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : (
+                        <Power size={11} />
+                      )}
+                      {loc.is_active ? "Disable" : "Enable"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleArchive(loc)}
+                    disabled={busyId === loc.id}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors disabled:opacity-60 ${
+                      archived
+                        ? "bg-cocoa-900 hover:bg-cocoa-800 text-cream-50"
+                        : "bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200"
+                    }`}
+                  >
+                    {busyId === loc.id ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : archived ? (
+                      <ArchiveRestore size={11} />
+                    ) : (
+                      <Trash2 size={11} />
+                    )}
+                    {archived ? "Restore" : "Archive"}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

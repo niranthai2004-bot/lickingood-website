@@ -46,11 +46,6 @@ export default function PickupPickerPage() {
       />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <FadeIn>
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-4">
-            Order
-          </p>
-        </FadeIn>
         <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-black text-cocoa-900 leading-[0.95] tracking-tight">
           <Line>Pick a shop.</Line>
           <Line delay={0.08}>Build your box.</Line>

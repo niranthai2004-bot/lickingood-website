@@ -41,7 +41,8 @@ export async function GET() {
     admin
       .from("merchant_locations")
       .select("id", { count: "exact", head: true })
-      .eq("is_active", true),
+      .eq("is_active", true)
+      .is("archived_at", null),
     admin
       .from("merchant_catalog_items")
       .select("id", { count: "exact", head: true })

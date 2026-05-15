@@ -63,9 +63,33 @@ export async function POST() {
     return NextResponse.json({ synced: 0, locations: [] });
   }
 
-  // ─── Resolve slug collisions against the rest of the platform ───
+  // ─── Look up archived locations so the upsert doesn't resurrect them ───
+  // Once a merchant archives a Square location locally, re-pulling from
+  // Square should NOT bring it back unless they explicitly un-archive.
   const admin = createServiceClient();
-  const desiredSlugs = locations.map((l) => slugify(l.name));
+  const { data: archivedRows } = await admin
+    .from("merchant_locations")
+    .select("square_location_id")
+    .eq("merchant_id", merchant.id)
+    .not("archived_at", "is", null);
+
+  const archivedSquareIds = new Set(
+    (archivedRows ?? [])
+      .map((r) => r.square_location_id)
+      .filter((id): id is string => !!id),
+  );
+
+  // Skip archived Square locations from the upsert payload entirely.
+  const liveLocations = locations.filter(
+    (l) => !archivedSquareIds.has(l.id),
+  );
+
+  if (liveLocations.length === 0) {
+    return NextResponse.json({ synced: 0, locations: [] });
+  }
+
+  // ─── Resolve slug collisions against the rest of the platform ───
+  const desiredSlugs = liveLocations.map((l) => slugify(l.name));
   const { data: clashing } = await admin
     .from("merchant_locations")
     .select("slug, square_location_id")
@@ -78,7 +102,7 @@ export async function POST() {
     if (row.slug) slugOwner.set(row.slug, row.square_location_id ?? null);
   }
 
-  const rows = locations.map((loc) => {
+  const rows = liveLocations.map((loc) => {
     const base = slugify(loc.name);
     const owner = slugOwner.get(base);
     const finalSlug =

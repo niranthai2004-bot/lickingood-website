@@ -24,6 +24,7 @@ export async function GET() {
       "slug, location_name, address, city, state, zip, phone, latitude, longitude",
     )
     .eq("is_active", true)
+    .is("archived_at", null)
     .not("slug", "is", null)
     .order("state", { ascending: true })
     .order("city", { ascending: true })
