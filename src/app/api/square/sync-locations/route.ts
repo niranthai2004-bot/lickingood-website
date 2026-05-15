@@ -126,7 +126,14 @@ export async function POST() {
       phone: loc.phone_number ?? null,
       latitude: loc.coordinates?.latitude ?? null,
       longitude: loc.coordinates?.longitude ?? null,
+      timezone: loc.timezone ?? null,
+      business_hours: loc.business_hours?.periods ?? [],
+      business_email: loc.business_email ?? null,
+      description: loc.description ?? null,
       is_active: loc.status === "ACTIVE",
+      // pickup_enabled / delivery_enabled are INTENTIONALLY omitted from the
+      // upsert payload so that re-syncing preserves the merchant's choices.
+      // New rows get the DB defaults (both TRUE) on first insert.
     };
   });
 

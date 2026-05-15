@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  Clock,
   Loader2,
   MapPin,
   Minus,
@@ -43,6 +44,8 @@ type LocationHeader = {
   state: string;
   phone: string | null;
   mapUrl: string;
+  todayLabel?: string;
+  isOpenNow?: boolean;
 };
 
 type DynamicCategory = { id: string; label: string };
@@ -336,9 +339,28 @@ export default function PickupMenuPage() {
             </Link>
           </FadeIn>
           <FadeIn delay={0.05}>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700 mb-3">
-              Pickup{location.state ? ` · ${location.state}` : ""}
-            </p>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <p className="text-sm font-bold uppercase tracking-[0.2em] text-cocoa-700">
+                Pickup{location.state ? ` · ${location.state}` : ""}
+              </p>
+              {location.todayLabel &&
+                location.todayLabel !== "Hours not available" && (
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                      location.isOpenNow
+                        ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                        : "bg-stone-100 text-stone-700 border-stone-200"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        location.isOpenNow ? "bg-emerald-500" : "bg-stone-400"
+                      }`}
+                    />
+                    {location.isOpenNow ? "Open now" : "Closed"}
+                  </span>
+                )}
+            </div>
             <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-black text-cocoa-900 leading-[0.95] tracking-tight">
               {location.name}
             </h1>
@@ -350,6 +372,13 @@ export default function PickupMenuPage() {
           </FadeIn>
           <FadeIn delay={0.15} className="mt-5">
             <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-cocoa-700">
+              {location.todayLabel &&
+                location.todayLabel !== "Hours not available" && (
+                  <li className="flex items-center gap-1.5">
+                    <Clock size={14} className="text-cocoa-900" />
+                    <span className="font-semibold">{location.todayLabel}</span>
+                  </li>
+                )}
               {location.address && (
                 <li className="flex items-center gap-1.5">
                   <MapPin size={14} className="text-cocoa-900" />

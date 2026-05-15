@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { PublicLocation } from "@/lib/locations/types";
+import {
+  getTodayHours,
+  type BusinessHoursPeriod,
+} from "@/lib/hours";
 
 /**
  * GET /api/public/locations
@@ -21,7 +25,7 @@ export async function GET() {
   const { data, error } = await admin
     .from("merchant_locations")
     .select(
-      "slug, location_name, address, city, state, zip, phone, latitude, longitude",
+      "slug, location_name, address, city, state, zip, phone, latitude, longitude, timezone, business_hours, pickup_enabled, delivery_enabled",
     )
     .eq("is_active", true)
     .is("archived_at", null)
@@ -47,6 +51,9 @@ export async function GET() {
       .filter(Boolean)
       .join(", ");
 
+    const periods = (row.business_hours ?? []) as BusinessHoursPeriod[];
+    const today = getTodayHours(periods, row.timezone ?? undefined);
+
     return {
       slug: row.slug as string,
       name: row.location_name,
@@ -60,14 +67,15 @@ export async function GET() {
       mapUrl: `https://maps.google.com/?q=${encodeURIComponent(
         fullAddress || row.location_name,
       )}`,
-      // Stable placeholder photo per slug — replace with real merchant
-      // uploads in a future phase.
       image: `https://loremflickr.com/900/1100/donut,bakery,storefront?lock=${
         3000 + i
       }`,
-      // Until per-location channels exist, all active locations support both.
-      pickup: true,
-      delivery: true,
+      pickup: row.pickup_enabled ?? true,
+      delivery: row.delivery_enabled ?? true,
+      timezone: row.timezone ?? null,
+      businessHours: periods,
+      todayLabel: today.label,
+      isOpenNow: today.isOpenNow,
     };
   });
 

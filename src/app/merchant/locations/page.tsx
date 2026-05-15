@@ -6,15 +6,23 @@ import Link from "next/link";
 import {
   ArchiveRestore,
   ArrowUpRight,
+  Bike,
+  Clock,
   ExternalLink,
   Loader2,
   MapPin,
   Power,
   RefreshCw,
+  ShoppingBag,
   Trash2,
 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant/MerchantShell";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  getTodayHours,
+  getWeeklySchedule,
+  type BusinessHoursPeriod,
+} from "@/lib/hours";
 
 type MerchantLocation = {
   id: string;
@@ -28,6 +36,10 @@ type MerchantLocation = {
   square_location_id: string | null;
   is_active: boolean;
   archived_at: string | null;
+  timezone: string | null;
+  business_hours: BusinessHoursPeriod[] | null;
+  pickup_enabled: boolean;
+  delivery_enabled: boolean;
 };
 
 export default function MerchantLocationsPage() {
@@ -45,11 +57,28 @@ export default function MerchantLocationsPage() {
     const { data: locs } = await supabase
       .from("merchant_locations")
       .select(
-        "id, location_name, address, city, state, zip, phone, slug, square_location_id, is_active, archived_at",
+        "id, location_name, address, city, state, zip, phone, slug, square_location_id, is_active, archived_at, timezone, business_hours, pickup_enabled, delivery_enabled",
       )
       .eq("merchant_id", mId)
       .order("created_at", { ascending: true });
     setLocations(locs ?? []);
+  };
+
+  const handleToggleFulfillment = async (
+    loc: MerchantLocation,
+    channel: "pickup" | "delivery",
+  ) => {
+    if (!merchantId) return;
+    setBusyId(loc.id);
+    const column = channel === "pickup" ? "pickup_enabled" : "delivery_enabled";
+    const next =
+      channel === "pickup" ? !loc.pickup_enabled : !loc.delivery_enabled;
+    const { error } = await supabase
+      .from("merchant_locations")
+      .update({ [column]: next })
+      .eq("id", loc.id);
+    if (!error) await loadLocations(merchantId);
+    setBusyId(null);
   };
 
   useEffect(() => {
@@ -249,6 +278,41 @@ export default function MerchantLocationsPage() {
                   <p className="mt-1 text-xs text-cocoa-700">{loc.phone}</p>
                 )}
 
+                {/* Today's open status + Today's hours summary */}
+                {!archived && (
+                  <TodaySummary
+                    periods={loc.business_hours ?? null}
+                    timezone={loc.timezone ?? undefined}
+                  />
+                )}
+
+                {/* Fulfillment channel toggles (pickup / delivery per location) */}
+                {!archived && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <ChannelToggle
+                      label="Pickup"
+                      Icon={ShoppingBag}
+                      enabled={loc.pickup_enabled}
+                      busy={busyId === loc.id}
+                      onToggle={() => handleToggleFulfillment(loc, "pickup")}
+                    />
+                    <ChannelToggle
+                      label="Delivery"
+                      Icon={Bike}
+                      enabled={loc.delivery_enabled}
+                      busy={busyId === loc.id}
+                      onToggle={() => handleToggleFulfillment(loc, "delivery")}
+                    />
+                  </div>
+                )}
+
+                {/* Weekly schedule (collapsed by default) */}
+                {!archived &&
+                  Array.isArray(loc.business_hours) &&
+                  loc.business_hours.length > 0 && (
+                    <WeeklyDisclosure periods={loc.business_hours} />
+                  )}
+
                 <dl className="mt-3 text-[11px] divide-y divide-cream-200">
                   <Row label="URL slug" value={loc.slug ?? "not generated"} mono />
                   <Row
@@ -348,5 +412,111 @@ function Row({
         {value}
       </dd>
     </div>
+  );
+}
+
+function TodaySummary({
+  periods,
+  timezone,
+}: {
+  periods: BusinessHoursPeriod[] | null;
+  timezone?: string;
+}) {
+  const today = getTodayHours(periods ?? undefined, timezone);
+  if (today.label === "Hours not available") return null;
+  return (
+    <div className="mt-3 flex items-center gap-2 text-xs">
+      <Clock size={12} className="text-cocoa-900 shrink-0" />
+      <span className="font-semibold text-cocoa-900 truncate">
+        {today.label}
+      </span>
+      <span
+        className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0 ${
+          today.isOpenNow
+            ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+            : "bg-stone-100 text-stone-700 border-stone-200"
+        }`}
+      >
+        {today.isOpenNow ? "Open" : "Closed"}
+      </span>
+    </div>
+  );
+}
+
+function ChannelToggle({
+  label,
+  Icon,
+  enabled,
+  busy,
+  onToggle,
+}: {
+  label: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  enabled: boolean;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={busy}
+      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-colors disabled:opacity-60 border ${
+        enabled
+          ? "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
+          : "bg-cream-100 text-cocoa-700 border-cream-200 hover:bg-cream-200"
+      }`}
+      aria-pressed={enabled}
+    >
+      {busy ? (
+        <Loader2 size={12} className="animate-spin" />
+      ) : (
+        <Icon size={12} />
+      )}
+      {label}
+      <span
+        className={`ml-auto w-1.5 h-1.5 rounded-full ${
+          enabled ? "bg-emerald-500" : "bg-stone-400"
+        }`}
+      />
+    </button>
+  );
+}
+
+function WeeklyDisclosure({
+  periods,
+}: {
+  periods: BusinessHoursPeriod[];
+}) {
+  const [open, setOpen] = useState(false);
+  const schedule = getWeeklySchedule(periods);
+  return (
+    <details
+      className="mt-3 rounded-xl bg-cream-100 border border-cream-200 px-3 py-2 text-[11px]"
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary className="cursor-pointer font-bold text-cocoa-900 list-none flex items-center justify-between">
+        Full weekly hours
+        <span className="text-cocoa-700">{open ? "Hide" : "Show"}</span>
+      </summary>
+      <ul className="mt-2 divide-y divide-cream-200">
+        {schedule.map((row) => (
+          <li
+            key={row.day}
+            className="flex items-center justify-between gap-3 py-1.5"
+          >
+            <span className="text-cocoa-700">{row.shortDay}</span>
+            <span
+              className={`font-bold ${
+                row.hours ? "text-cocoa-900" : "text-cocoa-700/60"
+              }`}
+            >
+              {row.hours ?? "Closed"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

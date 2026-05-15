@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/locations/slug";
+import {
+  getTodayHours,
+  getWeeklySchedule,
+  type BusinessHoursPeriod,
+} from "@/lib/hours";
 
 /**
  * GET /api/public/locations/[slug]/menu
@@ -110,7 +115,7 @@ export async function GET(
   const { data: loc } = await admin
     .from("merchant_locations")
     .select(
-      "id, merchant_id, location_name, address, city, state, zip, phone, slug, is_active",
+      "id, merchant_id, location_name, address, city, state, zip, phone, slug, is_active, timezone, business_hours, pickup_enabled, delivery_enabled",
     )
     .eq("slug", slug)
     .eq("is_active", true)
@@ -305,9 +310,15 @@ function locationPayload(
     zip: string | null;
     phone: string | null;
     slug: string | null;
+    timezone?: string | null;
+    business_hours?: BusinessHoursPeriod[] | null;
+    pickup_enabled?: boolean | null;
+    delivery_enabled?: boolean | null;
   },
   fullAddress: string,
 ) {
+  const periods = (loc.business_hours ?? []) as BusinessHoursPeriod[];
+  const today = getTodayHours(periods, loc.timezone ?? undefined);
   return {
     slug: loc.slug ?? "",
     name: loc.location_name,
@@ -319,6 +330,13 @@ function locationPayload(
     mapUrl: `https://maps.google.com/?q=${encodeURIComponent(
       fullAddress || loc.location_name,
     )}`,
+    timezone: loc.timezone ?? null,
+    businessHours: periods,
+    weeklySchedule: getWeeklySchedule(periods),
+    todayLabel: today.label,
+    isOpenNow: today.isOpenNow,
+    pickup: loc.pickup_enabled ?? true,
+    delivery: loc.delivery_enabled ?? true,
   };
 }
 

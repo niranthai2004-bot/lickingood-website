@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
-import { ArrowUpRight, Bike, MapPin, Phone, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, Bike, Clock, MapPin, Phone, ShoppingBag } from "lucide-react";
 import type { PublicLocation } from "@/lib/locations/types";
 import { FoodImage } from "@/components/ui/FoodImage";
 import { FadeIn, Line } from "@/components/ui/Reveal";
@@ -325,6 +325,21 @@ function LocationCard({
             {loc.state}
           </span>
         )}
+        {/* Open / Closed pill — top-left over the photo */}
+        <span
+          className={`absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm backdrop-blur ${
+            loc.isOpenNow
+              ? "bg-emerald-50/95 text-emerald-900 border border-emerald-200"
+              : "bg-stone-100/95 text-stone-700 border border-stone-200"
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              loc.isOpenNow ? "bg-emerald-500" : "bg-stone-400"
+            }`}
+          />
+          {loc.isOpenNow ? "Open now" : "Closed"}
+        </span>
       </div>
 
       {/* Body */}
@@ -338,6 +353,12 @@ function LocationCard({
         </p>
 
         <ul className="mt-4 space-y-2 text-sm text-cocoa-700">
+          {loc.todayLabel && loc.todayLabel !== "Hours not available" && (
+            <li className="flex items-start gap-2">
+              <Clock size={14} className="mt-0.5 shrink-0 text-cocoa-900" />
+              <span>{loc.todayLabel}</span>
+            </li>
+          )}
           {loc.address && (
             <li className="flex items-start gap-2">
               <MapPin size={14} className="mt-0.5 shrink-0 text-cocoa-900" />
@@ -357,20 +378,24 @@ function LocationCard({
           )}
         </ul>
 
-        {/* Action pills — always visible */}
+        {/* Action pills — gated on merchant's per-channel toggles */}
         <div className="mt-auto pt-5 flex flex-wrap gap-2">
-          <Link
-            href={`/order/pickup/${loc.slug}`}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 text-xs font-bold transition-colors"
-          >
-            <ShoppingBag size={13} /> Pickup
-          </Link>
-          <Link
-            href="/order/delivery"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-xs font-bold transition-colors"
-          >
-            <Bike size={13} /> Delivery
-          </Link>
+          {loc.pickup && (
+            <Link
+              href={`/order/pickup/${loc.slug}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-cocoa-900 hover:bg-cocoa-800 text-cream-50 text-xs font-bold transition-colors"
+            >
+              <ShoppingBag size={13} /> Pickup
+            </Link>
+          )}
+          {loc.delivery && (
+            <Link
+              href="/order/delivery"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-cream-100 hover:bg-cream-200 text-cocoa-900 text-xs font-bold transition-colors"
+            >
+              <Bike size={13} /> Delivery
+            </Link>
+          )}
           <a
             href={loc.mapUrl}
             target="_blank"

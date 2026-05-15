@@ -1,3 +1,5 @@
+import type { BusinessHoursPeriod } from "@/lib/hours";
+
 /**
  * Public-safe shape of a merchant location.
  *
@@ -24,7 +26,15 @@ export type PublicLocation = {
   mapUrl: string;
   /** Stable photo URL — placeholder for now, real merchant uploads later. */
   image: string;
-  /** Order-type availability flags. */
+  /** Order-type availability flags — reflect merchant pickup/delivery toggles. */
   pickup: boolean;
   delivery: boolean;
+  /** IANA timezone for the location, used to compute "open now" client-side. */
+  timezone: string | null;
+  /** Square-derived weekly business hours, exactly as returned by their API. */
+  businessHours: BusinessHoursPeriod[];
+  /** Pre-computed today's hours label, e.g. "Open today 5am – 8pm". */
+  todayLabel: string;
+  /** Whether the location is open at the moment the API responded. */
+  isOpenNow: boolean;
 };

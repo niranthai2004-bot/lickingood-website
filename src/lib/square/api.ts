@@ -75,11 +75,26 @@ export async function getValidAccessToken(
 // LOCATIONS
 // ───────────────────────────────────────────────────────────────────────────
 
+export type SquareBusinessHoursPeriod = {
+  /** Three-letter day code per Square API: "SUN" through "SAT". */
+  day_of_week: "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
+  /** Local time in "HH:MM:SS" 24-hour format. */
+  start_local_time?: string;
+  end_local_time?: string;
+};
+
 export type SquareLocation = {
   id: string;
   name: string;
   status: "ACTIVE" | "INACTIVE";
   phone_number?: string;
+  /** IANA timezone, e.g. "America/Chicago". */
+  timezone?: string;
+  business_email?: string;
+  description?: string;
+  business_hours?: {
+    periods?: SquareBusinessHoursPeriod[];
+  };
   address?: {
     address_line_1?: string;
     address_line_2?: string;
